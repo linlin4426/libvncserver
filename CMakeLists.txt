@@ -35,11 +35,20 @@ add_custom_target(
     )
 endif(CMAKE_GENERATOR MATCHES "Unix Makefiles|Ninja")
 
+if (NOT CMAKE_BUILD_TYPE)
+  message(STATUS "No build type selected, default to Release")
+  set(CMAKE_BUILD_TYPE "Release")
+endif()
+
+#set(CMAKE_C_FLAGS "-Wall -Wextra")
+set(CMAKE_C_FLAGS_DEBUG "-g")
+set(CMAKE_C_FLAGS_RELEASE "-O3")
+
 include_directories(${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/libvncserver ${CMAKE_CURRENT_SOURCE_DIR}/common)
 
 # all the build configuration switches
 option(LIBVNCSERVER_INSTALL "Generate installation target" ON)
-option(BUILD_SHARED_LIBS "Build shared libraries" ${UNIX})
+option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
 option(WITH_ZLIB "Search for the zlib compression library to support additional encodings" ON)
 option(WITH_LZO "Search for the LZO compression library to omit internal miniLZO implementation" ON)
 option(WITH_JPEG "Search for the libjpeg compression library to support additional encodings" ON)
@@ -500,7 +509,7 @@ target_link_libraries(vncclient
                       ${ZLIB_LIBRARIES}
                       ${LZO_LIBRARIES}
                       ${JPEG_LIBRARIES}
-		      ${CRYPTO_LIBRARIES}
+		              ${CRYPTO_LIBRARIES}
                       ${GNUTLS_LIBRARIES}
                       ${OPENSSL_LIBRARIES}
 )
@@ -509,8 +518,8 @@ target_link_libraries(vncserver
                       ${ZLIB_LIBRARIES}
                       ${LZO_LIBRARIES}
                       ${JPEG_LIBRARIES}
-		      ${PNG_LIBRARIES}
-		      ${CRYPTO_LIBRARIES}
+		              ${PNG_LIBRARIES}
+		              ${CRYPTO_LIBRARIES}
                       ${GNUTLS_LIBRARIES}
                       ${OPENSSL_LIBRARIES}
 )
@@ -536,6 +545,7 @@ set(LIBVNCSERVER_EXAMPLES
     simple15
     storepasswd
     vncev
+    x264server
   )
 
 if(WITH_THREADS AND (CMAKE_USE_PTHREADS_INIT OR CMAKE_USE_WIN32_THREADS_INIT))
