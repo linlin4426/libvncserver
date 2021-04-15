@@ -1138,6 +1138,10 @@ void rfbScreenCleanup(rfbScreenInfoPtr screen)
   rfbTightCleanup(screen);
 #endif
 
+#ifdef LIBVNCSERVER_HAVE_LIBH264
+  rfbH264Cleanup(screen);
+#endif
+
   /* free all 'scaled' versions of this screen */
   while (screen->scaledScreenNext!=NULL)
   {

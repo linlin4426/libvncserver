@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.4)
 
-project(LibVNCServer VERSION 0.9.13 LANGUAGES C)
+message("Hello Cmake")
+
+project(LibVNCServer VERSION 0.9.13 LANGUAGES C CXX)
 include(CheckFunctionExists)
 include(CheckSymbolExists)
 include(CheckIncludeFile)
@@ -17,6 +19,7 @@ set(FULL_PACKAGE_NAME      "LibVNCServer")
 set(VERSION_SO             "1")
 set(PROJECT_BUGREPORT_PATH "https://github.com/LibVNC/libvncserver/issues")
 set(LIBVNCSERVER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/libvncserver)
+set(LIBVNCSERVERANDROID_DIR ${CMAKE_CURRENT_SOURCE_DIR}/libvncserver/android)
 set(COMMON_DIR ${CMAKE_CURRENT_SOURCE_DIR}/common)
 set(LIBVNCCLIENT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/libvncclient)
 set(LIBVNCSRVEXAMPLE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/examples)
@@ -53,6 +56,8 @@ option(WITH_ZLIB "Search for the zlib compression library to support additional 
 option(WITH_LZO "Search for the LZO compression library to omit internal miniLZO implementation" ON)
 option(WITH_JPEG "Search for the libjpeg compression library to support additional encodings" ON)
 option(WITH_PNG "Search for the PNG compression library to support additional encodings" ON)
+option(WITH_X264 "Search for the X264 compression library to support additional encodings" OFF)
+option(WITH_OPENH264 "Search for the OPENH264 compression library to support additional encodings" ON)
 option(WITH_SDL "Search for the Simple Direct Media Layer library to build an example SDL vnc client" ON)
 option(WITH_GTK "Search for the GTK library to build an example GTK vnc client" ON)
 option(WITH_THREADS "Search for a threading library to build with multithreading support" ON)
@@ -126,6 +131,13 @@ if(WITH_PNG)
   find_package(PNG)
 endif(WITH_PNG)
 
+if(WITH_X264)
+  find_package(X264)
+endif(WITH_X264)
+
+if(WITH_OPENH264)
+  find_package(OPENH264)
+endif()
 
 if(WITH_SDL)
   find_package(SDL2)
@@ -238,9 +250,23 @@ if(PNG_FOUND)
 else()
   unset(PNG_LIBRARIES) # would otherwise contain -NOTFOUND, confusing target_link_libraries()
 endif(PNG_FOUND)
+
+if(X264_FOUND)
+  set(LIBVNCSERVER_HAVE_LIBX264 1)
+else()
+  set(X264_LIBRARIES "") # would otherwise contain -NOTFOUND, confusing target_link_libraries()
+endif(X264_FOUND)
+
+if(OPENH264_FOUND)
+  set(LIBVNCSERVER_HAVE_LIBOPENH264 1)
+else()
+  set(OPENH264_LIBRARIES "") # would otherwise contain -NOTFOUND, confusing target_link_libraries()
+endif(OPENH264_FOUND)
+
 if(NOT OPENSSL_FOUND)
     unset(OPENSSL_LIBRARIES) # would otherwise contain -NOTFOUND, confusing target_link_libraries()
 endif()
+
 if(SYSTEMD_FOUND)
   add_definitions(-DLIBVNCSERVER_WITH_SYSTEMD)
   include_directories(${SYSTEMD_INCLUDE_DIRS})
@@ -470,9 +496,23 @@ if(PNG_FOUND)
   include_directories(${PNG_INCLUDE_DIR})
 endif(PNG_FOUND)
 
+if(X264_FOUND)
+  add_definitions(-DLIBVNCSERVER_HAVE_LIBX264)
+  include_directories(${X264_INCLUDE_DIR})
+  set(X264_C ${LIBVNCSERVER_DIR}/x264.c)
+endif(X264_FOUND)
+
+if(OPENH264_FOUND)
+  add_definitions(-DLIBVNCSERVER_HAVE_LIBOPENH264)
+  include_directories(${OPENH264_INCLUDE_DIR})
+  set(OPENH264_C ${LIBVNCSERVER_DIR}/openh264.cpp)
+endif(OPENH264_FOUND)
+
 set(LIBVNCSERVER_SOURCES
     ${LIBVNCSERVER_SOURCES}
     ${TIGHT_C}
+    ${X264_C}
+    ${OPENH264_C}
 )
 
 if(WITH_THREADS AND WITH_TIGHTVNC_FILETRANSFER AND CMAKE_USE_PTHREADS_INIT)
@@ -504,6 +544,44 @@ if(WIN32)
   endif(WITH_TIGHTVNC_FILETRANSFER)
 endif(WIN32)
 
+if(ANDROID)
+  find_library(log-lib log)
+  find_library(mediandk-lib mediandk)
+
+  set(LIBVNCSERVERANDROID_SOURCES
+    ${LIBVNCSERVER_SOURCES}
+    ${LIBVNCSERVER_DIR}/../android/androidopenh264server.c
+    ${LIBVNCSERVER_DIR}/../android/androidlibvncserver.c
+    ${LIBVNCSERVER_DIR}/../android/logging.c
+  )
+
+  add_library(openh264-lib
+          SHARED
+          IMPORTED
+  )
+
+  set_target_properties(openh264-lib
+            PROPERTIES IMPORTED_LOCATION
+            ${OPENH264_LIBRARIES}
+  )
+
+  add_library(vncserverandroid SHARED ${LIBVNCSERVERANDROID_SOURCES})
+
+  target_link_libraries(vncserverandroid
+    ${ADDITIONAL_LIBS}
+    ${ZLIB_LIBRARIES}
+    ${LZO_LIBRARIES}
+    ${JPEG_LIBRARIES}
+    ${PNG_LIBRARIES}
+    ${CRYPTO_LIBRARIES}
+    ${GNUTLS_LIBRARIES}
+    ${OPENH264_LIBRARIES}
+    ${OPENSSL_LIBRARIES}
+    ${log-lib}
+    ${mediandk-lib}
+  )
+endif(ANDROID)
+
 target_link_libraries(vncclient
                       ${ADDITIONAL_LIBS}
                       ${ZLIB_LIBRARIES}
@@ -513,15 +591,21 @@ target_link_libraries(vncclient
                       ${GNUTLS_LIBRARIES}
                       ${OPENSSL_LIBRARIES}
 )
+
+#add_library(${OPENH264_LIBRARIES} SHARED IMPORTED)
+#set_property(TARGET vncserver PROPERTY IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/extern/openh264/lib)
+
 target_link_libraries(vncserver
                       ${ADDITIONAL_LIBS}
                       ${ZLIB_LIBRARIES}
                       ${LZO_LIBRARIES}
                       ${JPEG_LIBRARIES}
 		              ${PNG_LIBRARIES}
+#                      ${X264_LIBRARIES}
 		              ${CRYPTO_LIBRARIES}
                       ${GNUTLS_LIBRARIES}
                       ${OPENSSL_LIBRARIES}
+                      ${OPENH264_LIBRARIES}
 )
 
 SET_TARGET_PROPERTIES(vncclient vncserver

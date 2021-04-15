@@ -6,8 +6,6 @@ LibVNCServer*.tar.gz
 rfbconfig.h
 *.o
 *.a
-*.so
-*.so.*
 client_examples/SDLvncviewer
 client_examples/backchannel
 client_examples/gtkvncviewer

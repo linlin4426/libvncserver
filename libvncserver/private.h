@@ -18,6 +18,11 @@ rfbClientPtr rfbClientIteratorHead(rfbClientIteratorPtr i);
 extern void rfbTightCleanup(rfbScreenInfoPtr screen);
 #endif
 
+/* from h264.c */
+#ifdef LIBVNCSERVER_HAVE_LIBH264
+extern void rfbH264Cleanup(rfbScreenInfoPtr screen);
+#endif
+
 /* from zlib.c */
 extern void rfbZlibCleanup(rfbScreenInfoPtr screen);
 

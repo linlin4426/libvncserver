@@ -560,7 +560,8 @@ typedef struct _rfbClientRec {
      * means 8K minimum.
      */
 
-#define UPDATE_BUF_SIZE 30000
+//#define UPDATE_BUF_SIZE 30000
+#define UPDATE_BUF_SIZE 5000000
 
     char updateBuf[UPDATE_BUF_SIZE];
     int ublen;
@@ -890,6 +891,14 @@ extern rfbBool rfbSendCompressedDataTight(rfbClientPtr cl, char *buf, int compre
 
 #if defined(LIBVNCSERVER_HAVE_LIBPNG)
 extern rfbBool rfbSendRectEncodingTightPng(rfbClientPtr cl, int x,int y,int w,int h);
+#endif
+
+#ifdef LIBVNCSERVER_HAVE_LIBX264
+extern rfbBool rfbSendFrameEncodingH264(rfbClientPtr cl);
+#endif
+
+#ifdef LIBVNCSERVER_HAVE_LIBOPENH264
+extern rfbBool rfbSendFrameEncodingH264(rfbClientPtr cl);
 #endif
 
 #endif
