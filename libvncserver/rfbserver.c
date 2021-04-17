@@ -2957,7 +2957,7 @@ updateFailed:
     return FALSE;
 }
 
-#if defined(LIBVNCSERVER_HAVE_LIBX264) || defined(LIBVNCSERVER_HAVE_LIBOPENH264)
+#if defined(LIBVNCSERVER_HAVE_LIBX264) || defined(LIBVNCSERVER_HAVE_LIBOPENH264) || defined(LIBVNCSERVER_HAVE_LIBMMALH264)
 rfbBool sendFramebufferUpdateH264(rfbClientPtr cl, sraRegionPtr givenUpdateRegion) {
     FramebufferAuxiliaryMessages messages;
     rfbBool result = TRUE;
@@ -2973,7 +2973,8 @@ rfbBool sendFramebufferUpdateH264(rfbClientPtr cl, sraRegionPtr givenUpdateRegio
     }
 
 //    if(!rfbSendFrameEncodingX264(cl)) {
-    if(!rfbSendFrameEncodingOpenH264(cl)) {
+//    if(!rfbSendFrameEncodingOpenH264(cl)) {
+    if(!rfbSendFrameEncodingMmalH264(cl)) {
         result = FALSE;
         goto updateFailed;
     }
@@ -3014,7 +3015,7 @@ rfbSendFramebufferUpdate(rfbClientPtr cl,
     rfbBool sendServerIdentity = FALSE;
     rfbBool result = TRUE;
 
-#if defined(LIBVNCSERVER_HAVE_LIBX264) || defined(LIBVNCSERVER_HAVE_LIBOPENH264)
+#if defined(LIBVNCSERVER_HAVE_LIBX264) || defined(LIBVNCSERVER_HAVE_LIBOPENH264) || defined(LIBVNCSERVER_HAVE_LIBMMALH264)
     if(cl->preferredEncoding == rfbEncodingX264) {
         if(!sendFramebufferUpdateH264(cl, updateRegion)) {
             return FALSE;

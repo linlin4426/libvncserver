@@ -686,6 +686,11 @@ typedef struct _rfbClientRec {
     rfbBool useExtDesktopSize;
     int requestedDesktopSizeChange;
     int lastDesktopSizeChangeError;
+
+#ifdef LIBVNCSERVER_STATISTICS_ENABLED
+    rfbStatistics rfbStatistics;
+#endif
+
 } rfbClientRec, *rfbClientPtr;
 
 /**
@@ -801,6 +806,7 @@ extern rfbBool rfbProcessFileTransfer(rfbClientPtr cl, uint8_t contentType, uint
 
 void rfbGotXCutText(rfbScreenInfoPtr rfbScreen, char *str, int len);
 
+
 /* translate.c */
 
 extern rfbBool rfbEconomicTranslate;
@@ -894,11 +900,15 @@ extern rfbBool rfbSendRectEncodingTightPng(rfbClientPtr cl, int x,int y,int w,in
 #endif
 
 #ifdef LIBVNCSERVER_HAVE_LIBX264
-extern rfbBool rfbSendFrameEncodingH264(rfbClientPtr cl);
+extern rfbBool rfbSendFrameEncodingX264(rfbClientPtr cl);
 #endif
 
 #ifdef LIBVNCSERVER_HAVE_LIBOPENH264
-extern rfbBool rfbSendFrameEncodingH264(rfbClientPtr cl);
+extern rfbBool rfbSendFrameEncodingOpenH264(rfbClientPtr cl);
+#endif
+
+#ifdef LIBVNCSERVER_HAVE_LIBMMALH264
+extern rfbBool rfbSendFrameEncodingMmalH264(rfbClientPtr cl);
 #endif
 
 #endif
@@ -939,6 +949,9 @@ extern void rfbDefaultPtrAddEvent(int buttonMask,int x,int y,rfbClientPtr cl);
 #ifdef LIBVNCSERVER_HAVE_LIBZ
 extern rfbBool rfbSendRectEncodingZRLE(rfbClientPtr cl, int x, int y, int w,int h);
 #endif
+
+/* statistics/rfbStatistics.c */
+extern rfbBool rfbSendStatistics(rfbClientPtr cl);
 
 /* stats.c */
 

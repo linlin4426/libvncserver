@@ -22,7 +22,7 @@ void fillInputBuffer(char *buffer, int i, int frame_width, int frame_height, int
 }
 
 void paintCursor(char *buffer, int i, int frame_width, int frame_height, int mousex, int mousey) {
-    const int cursor_size = 10;
+    const int cursor_size = 40;
     u_int32_t stride = frame_width * 4;
     for(int y = mousey-cursor_size; y < mousey+cursor_size; y++) {
         for(int x = mousex-cursor_size; x < mousex+cursor_size; x++) {
@@ -36,10 +36,10 @@ void paintCursor(char *buffer, int i, int frame_width, int frame_height, int mou
 static int counter = 0;
 //static int width = 4000;
 //static int height = 3000;
-//static int width = 1920;
-//static int height = 1080;
-static int width = 1024;
-static int height = 600;
+static int width = 1920;
+static int height = 1080;
+//static int width = 1024;
+//static int height = 600;
 
 int main(int argc,char** argv)
 {
@@ -52,7 +52,7 @@ int main(int argc,char** argv)
     int i;
     for(i=0; rfbIsActive(rfbScreen); i++) {
       //fprintf(stderr,"%d\r",i);
-      rfbLog("[%d/%d]\n",rfbScreen->cursorX,rfbScreen->cursorY);
+//      rfbLog("[%d/%d]\n",rfbScreen->cursorX,rfbScreen->cursorY);
       if(rfbScreen->clientHead && rfbScreen->clientHead->preferredEncoding == rfbEncodingX264) {
           if(rfbScreen->cursorX > 3 && rfbScreen->cursorX < width-3 && rfbScreen->cursorY > 3 && rfbScreen->cursorY < height-3) {
 //              fillInputBuffer(rfbScreen->frameBuffer, counter, width, height, rfbScreen->cursorX, rfbScreen->cursorY);
@@ -63,7 +63,6 @@ int main(int argc,char** argv)
           }
       }
       rfbProcessEvents(rfbScreen, 33333);
-//      usleep(33333);
 //      rfbMarkRectAsModified();
 //      sraRegionPtr region = sraRgnCreateRect(0,0,width,height);
 //      sleep(1);

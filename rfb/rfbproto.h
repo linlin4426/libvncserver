@@ -61,6 +61,7 @@
  */
 
 #include <stdint.h>
+#include <statistics/rfbStatistics.h>
 
 #if defined(WIN32)
 typedef int8_t rfbBool;
@@ -399,6 +400,8 @@ typedef struct {
 /* Modif sf@2002 */
 #define rfbResizeFrameBuffer 4
 #define rfbPalmVNCReSizeFrameBuffer 0xF
+/* openh264 experimental */
+#define rfbStatisticsUpdate 50
 
 /* client -> server */
 
@@ -1259,6 +1262,7 @@ typedef union {
 	rfbTextChatMsg tc;
 	rfbXvpMsg xvp;
 	rfbExtDesktopSizeMsg eds;
+	rfbStatisticsMsg stats;
 } rfbServerToClientMsg;
 
 

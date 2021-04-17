@@ -47,7 +47,12 @@ endif()
 set(CMAKE_C_FLAGS_DEBUG "-g")
 set(CMAKE_C_FLAGS_RELEASE "-O3")
 
-include_directories(${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/libvncserver ${CMAKE_CURRENT_SOURCE_DIR}/common)
+include_directories(
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_BINARY_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/libvncserver
+        ${CMAKE_CURRENT_SOURCE_DIR}/common
+)
 
 # all the build configuration switches
 option(LIBVNCSERVER_INSTALL "Generate installation target" ON)
@@ -58,6 +63,7 @@ option(WITH_JPEG "Search for the libjpeg compression library to support addition
 option(WITH_PNG "Search for the PNG compression library to support additional encodings" ON)
 option(WITH_X264 "Search for the X264 compression library to support additional encodings" OFF)
 option(WITH_OPENH264 "Search for the OPENH264 compression library to support additional encodings" ON)
+option(WITH_MMALH264 "Search for the rasperry pi userland libraries to support additional encodings" ON)
 option(WITH_SDL "Search for the Simple Direct Media Layer library to build an example SDL vnc client" ON)
 option(WITH_GTK "Search for the GTK library to build an example GTK vnc client" ON)
 option(WITH_THREADS "Search for a threading library to build with multithreading support" ON)
@@ -137,6 +143,10 @@ endif(WITH_X264)
 
 if(WITH_OPENH264)
   find_package(OPENH264)
+endif()
+
+if(WITH_MMALH264)
+  find_package(MMALH264)
 endif()
 
 if(WITH_SDL)
@@ -262,6 +272,12 @@ if(OPENH264_FOUND)
 else()
   set(OPENH264_LIBRARIES "") # would otherwise contain -NOTFOUND, confusing target_link_libraries()
 endif(OPENH264_FOUND)
+
+if(MMALH264_FOUND)
+  set(LIBVNCSERVER_HAVE_LIBMMALH264 1)
+else()
+  set(MMALH264_LIBRARIES "") # would otherwise contain -NOTFOUND, confusing target_link_libraries()
+endif(MMALH264_FOUND)
 
 if(NOT OPENSSL_FOUND)
     unset(OPENSSL_LIBRARIES) # would otherwise contain -NOTFOUND, confusing target_link_libraries()
@@ -398,6 +414,7 @@ set(LIBVNCSERVER_SOURCES
     ${LIBVNCSERVER_DIR}/ultra.c
     ${LIBVNCSERVER_DIR}/scale.c
     ${CRYPTO_SOURCES}
+    ${LIBVNCSERVER_DIR}/statistics/rfbStatistics.c
 )
 
 set(LIBVNCCLIENT_SOURCES
@@ -499,20 +516,37 @@ endif(PNG_FOUND)
 if(X264_FOUND)
   add_definitions(-DLIBVNCSERVER_HAVE_LIBX264)
   include_directories(${X264_INCLUDE_DIR})
-  set(X264_C ${LIBVNCSERVER_DIR}/x264.c)
+  set(X264_C
+          ${LIBVNCSERVER_DIR}/h264/common.cpp
+          ${LIBVNCSERVER_DIR}/h264/x264.c
+  )
 endif(X264_FOUND)
 
 if(OPENH264_FOUND)
   add_definitions(-DLIBVNCSERVER_HAVE_LIBOPENH264)
   include_directories(${OPENH264_INCLUDE_DIR})
-  set(OPENH264_C ${LIBVNCSERVER_DIR}/openh264.cpp)
+  set(OPENH264_C
+          ${LIBVNCSERVER_DIR}/h264/common.cpp
+          ${LIBVNCSERVER_DIR}/h264/openh264.cpp
+  )
 endif(OPENH264_FOUND)
+
+if(MMALH264_FOUND)
+  add_definitions(-DLIBVNCSERVER_HAVE_MMALOPENH264)
+  include_directories(${MMALH264_INCLUDE_DIR})
+  set(MMALH264_C
+          ${LIBVNCSERVER_DIR}/h264/common.cpp
+          ${LIBVNCSERVER_DIR}/h264/mmalh264.cpp
+          ${LIBVNCSERVER_DIR}/h264/mmalh264_encoder.cpp
+  )
+endif(MMALH264_FOUND)
 
 set(LIBVNCSERVER_SOURCES
     ${LIBVNCSERVER_SOURCES}
     ${TIGHT_C}
     ${X264_C}
     ${OPENH264_C}
+    ${MMALH264_C}
 )
 
 if(WITH_THREADS AND WITH_TIGHTVNC_FILETRANSFER AND CMAKE_USE_PTHREADS_INIT)
@@ -536,7 +570,7 @@ if(LIBVNCSERVER_WITH_WEBSOCKETS)
 endif(LIBVNCSERVER_WITH_WEBSOCKETS)
 
 add_library(vncclient ${LIBVNCCLIENT_SOURCES})
-add_library(vncserver ${LIBVNCSERVER_SOURCES})
+add_library(vncserver ${LIBVNCSERVER_SOURCES} libvncserver/h264/common.h)
 if(WIN32)
   set(ADDITIONAL_LIBS ${ADDITIONAL_LIBS} ws2_32)
   if(WITH_TIGHTVNC_FILETRANSFER)
@@ -606,6 +640,7 @@ target_link_libraries(vncserver
                       ${GNUTLS_LIBRARIES}
                       ${OPENSSL_LIBRARIES}
                       ${OPENH264_LIBRARIES}
+                      ${MMALH264_LIBRARIES}
 )
 
 SET_TARGET_PROPERTIES(vncclient vncserver
