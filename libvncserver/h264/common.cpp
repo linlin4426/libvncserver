@@ -31,18 +31,18 @@ void rgba2Yuv(uint8_t *destination, uint8_t *rgb, size_t width, size_t height)
         {
             for( x = 0; x < width; x += 2 )
             {
-                uint8_t r = rgb[4 * i];
+                uint8_t b = rgb[4 * i];
                 uint8_t g = rgb[4 * i + 1];
-                uint8_t b = rgb[4 * i + 2];
+                uint8_t r = rgb[4 * i + 2];
 
                 destination[i++] = ((66*r + 129*g + 25*b) >> 8) + 16;
 
                 destination[upos++] = ((-38*r + -74*g + 112*b) >> 8) + 128;
                 destination[vpos++] = ((112*r + -94*g + -18*b) >> 8) + 128;
 
-                r = rgb[4 * i];
+                b = rgb[4 * i];
                 g = rgb[4 * i + 1];
-                b = rgb[4 * i + 2];
+                r = rgb[4 * i + 2];
 
                 destination[i++] = ((66*r + 129*g + 25*b) >> 8) + 16;
             }
@@ -51,9 +51,9 @@ void rgba2Yuv(uint8_t *destination, uint8_t *rgb, size_t width, size_t height)
         {
             for( x = 0; x < width; x += 1 )
             {
-                uint8_t r = rgb[4 * i];
+                uint8_t b = rgb[4 * i];
                 uint8_t g = rgb[4 * i + 1];
-                uint8_t b = rgb[4 * i + 2];
+                uint8_t r = rgb[4 * i + 2];
 
                 destination[i++] = ((66*r + 129*g + 25*b) >> 8) + 16;
             }

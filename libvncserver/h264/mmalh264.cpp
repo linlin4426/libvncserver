@@ -8,34 +8,60 @@ static u_int32_t frameWidth = 0;
 static u_int32_t frameHeight = 0;
 static rfbClientPtr client = NULL;
 static u_char *yuv_buffer = NULL;
+static u_int32_t bytesSent = 0;
+static u_int32_t bytesPacket = 0;
+static bool openFrame = false;
+
 static u_int32_t frameNum = 0;
+static u_int64_t startTsNs = 0;
+static u_int64_t lastSkipTsNs = 0;
+static u_int64_t lastSendTsNs = 0;
+static uint64_t desiredFrameDurationNs = 33333333; //fps
 
-void handle_frame(MMAL_BUFFER_HEADER_T *bufferHeader) {
+static FILE *fid = NULL;
 
+extern "C" void handle_frame(MMAL_BUFFER_HEADER_T *bufferHeader) {
 
-    int frameStartFlag = bufferHeader->flags & MMAL_BUFFER_HEADER_FLAG_FRAME_START;
-    int frameEndFlag = bufferHeader->flags & MMAL_BUFFER_HEADER_FLAG_FRAME_END;
-
-    client->rfbStatistics.encode_ts_end_ms = (uint32_t)(getTimeNowMs() - t0);
-
-    sendFramebufferUpdateMsg2(client, 0, 0, frameWidth, frameHeight, bufferHeader->data, bufferHeader->length, 1);
-
-//    if(frameEndFlag) {
-//        client->rfbStatistics.tx_ts_start_ms = (uint32_t)(getTimeNowMs() - t0);
+    //DEBUG stream to file:
+//    if(fid == NULL) {
+//        fid = fopen("dump.h264", "wb");
 //    }
+//    fwrite(bufferHeader->data, bufferHeader->length, 1, fid);
 //
-//    if(frameStartFlag) {
-//        sendFramebufferUpdateMsg2(client, 0, 0, frameWidth, frameHeight, bufferHeader->data, bufferHeader->length, frameEndFlag);
-//    } else {
-//        sendOrQueueData(client, bufferHeader->data, bufferHeader->length, frameEndFlag);
-//
-//        client->rfbStatistics.encode_ts_end_ms = (uint32_t)(getTimeNowMs() - t0);
-//    }
-//    client->rfbStatistics.tx_ts_end_ms = (uint32_t)(getTimeNowMs() - t0);
+//    char filename[20];
+//    sprintf(filename, "dump%04d", frameNum);
+//    FILE *fid2 = fopen(filename,"wb");
+//    fwrite(bufferHeader->data, bufferHeader->length, 1, fid2);
+//    fclose(fid2);
 
-//    fprintf(stdout, "% (%d bytes)\n",frameNum++, bufferHeader->length);
 
-    rfbSendStatistics(client);
+    if(bufferHeader->flags & MMAL_BUFFER_HEADER_FLAG_NAL_END) {
+        client->rfbStatistics.encode_ts_end_ms = (uint32_t)(getTimeNowMs() - t0);
+        client->rfbStatistics.tx_ts_start_ms = (uint32_t)(getTimeNowMs() - t0);
+        bytesPacket += bufferHeader->length;
+        bytesSent += bufferHeader->length;
+        if(openFrame) {
+            sendOrQueueData(client, bufferHeader->data, bufferHeader->length, true);
+        } else {
+            sendFramebufferUpdateMsg2(client, 0, 0, frameWidth, frameHeight, bufferHeader->data, bufferHeader->length, true);
+        }
+        openFrame = false;
+
+        int shouldDisplayAt = frameNum *
+
+        fprintf(stdout, "%d (%d bytes), total=%d, %dms\n",frameNum++, bytesPacket, bytesSent, client->rfbStatistics.encode_ts_end_ms - client->rfbStatistics.encode_ts_start_ms);
+        client->rfbStatistics.tx_ts_end_ms = (uint32_t)(getTimeNowMs() - t0);
+        rfbSendStatistics(client);
+        bytesPacket = 0;
+    } else {
+        if(openFrame) {
+            sendOrQueueData(client, bufferHeader->data, bufferHeader->length, false);
+        } else {
+            sendFramebufferUpdateMsg2(client, 0, 0, frameWidth, frameHeight, bufferHeader->data, bufferHeader->length, false);
+        }
+        openFrame = true;
+        bytesPacket = bufferHeader->length;
+    }
 }
 
 static rfbBool initMmalH264(rfbClientPtr cl) {
@@ -66,6 +92,8 @@ extern "C" rfbBool rfbSendFrameEncodingMmalH264(rfbClientPtr cl) {
     int h = cl->screen->height;
     int rv;
     int frameSize;
+    uint32_t nowTsMs = 0;
+    uint32_t lastSendTsMs = 0;
 
     if(!encoderInitialized) {
         if(!initMmalH264(cl)) {
@@ -83,14 +111,20 @@ extern "C" rfbBool rfbSendFrameEncodingMmalH264(rfbClientPtr cl) {
         yuv_buffer = (u_char*)malloc(w*h + ((w*h)/2));
     }
 
-    cl->rfbStatistics.encode_ts_start_ms = (uint32_t)(getTimeNowMs() - t0);
+
 
 
 //    fillInputBuffer((char*)cl->screen->frameBuffer, frameNum, w, h);
 
-    rgba2Yuv(yuv_buffer, (u_char*)cl->screen->frameBuffer, w, h);
-
-    mmalh264_encoder_encode(yuv_buffer, w, h, (onFrameCb)&handle_frame);
+//    nowTsMs = (uint32_t)(getTimeNowMs() - t0);
+//
+//    if((nowTsMs - lastSendTsMs) < desiredFrameDurationMs || (nowTsMs - lastSkipTsMs) < desiredFrameDurationMs) {
+    cl->rfbStatistics.encode_ts_start_ms = (uint32_t)(getTimeNowMs() - t0);
+    mmalh264_encoder_encode((u_char*)cl->screen->frameBuffer, w, h, (onFrameCb)&handle_frame);
+//    } else {
+//        fprintf(stdout, "frame skipped (%d)\n", nowTsMs - lastSkipTsMs);
+//        lastSkipTsMs = nowTsMs;
+//    }
 
     error:
     return result;

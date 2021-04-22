@@ -9,6 +9,20 @@ uint64_t getTimeNowMs() {
     return now_ns;
 }
 
+uint64_t getTimeNowUs() {
+    struct timespec now = {};
+    clock_gettime( CLOCK_MONOTONIC_RAW, &now );
+    uint64_t now_ns = (uint64_t)now.tv_sec * UINT64_C(1000000) + (uint64_t)now.tv_nsec/1000;
+    return now_ns;
+}
+
+uint64_t getTimeNowNs() {
+    struct timespec now = {};
+    clock_gettime( CLOCK_MONOTONIC_RAW, &now );
+    uint64_t now_ns = (uint64_t)now.tv_sec * UINT64_C(1000000000) + (uint64_t)now.tv_nsec;
+    return now_ns;
+}
+
 rfbBool rfbSendStatistics(rfbClientPtr cl) {
     rfbBool result = TRUE;
     rfbStatisticsMsg msg = {0};

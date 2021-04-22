@@ -22,7 +22,7 @@ void fillInputBuffer(char *buffer, int i, int frame_width, int frame_height, int
 }
 
 void paintCursor(char *buffer, int i, int frame_width, int frame_height, int mousex, int mousey) {
-    const int cursor_size = 40;
+    const int cursor_size = 5;
     u_int32_t stride = frame_width * 4;
     for(int y = mousey-cursor_size; y < mousey+cursor_size; y++) {
         for(int x = mousex-cursor_size; x < mousex+cursor_size; x++) {
@@ -55,10 +55,10 @@ int main(int argc,char** argv)
 //      rfbLog("[%d/%d]\n",rfbScreen->cursorX,rfbScreen->cursorY);
       if(rfbScreen->clientHead && rfbScreen->clientHead->preferredEncoding == rfbEncodingX264) {
           if(rfbScreen->cursorX > 3 && rfbScreen->cursorX < width-3 && rfbScreen->cursorY > 3 && rfbScreen->cursorY < height-3) {
-//              fillInputBuffer(rfbScreen->frameBuffer, counter, width, height, rfbScreen->cursorX, rfbScreen->cursorY);
+              fillInputBuffer(rfbScreen->frameBuffer, counter, width, height, rfbScreen->cursorX, rfbScreen->cursorY);
               paintCursor(rfbScreen->frameBuffer, 10, width, height, rfbScreen->cursorX, rfbScreen->cursorY);
           } else {
-//              fillInputBuffer(rfbScreen->frameBuffer, counter, width, height, 100, 100);
+              fillInputBuffer(rfbScreen->frameBuffer, counter, width, height, 100, 100);
               paintCursor(rfbScreen->frameBuffer, 10, width, height, 100, 100);
           }
       }

@@ -23,6 +23,8 @@ typedef struct rfbStatisticsMsg {
 } rfbStatisticsMsg;
 
 uint64_t getTimeNowMs();
+uint64_t getTimeNowUs();
+uint64_t getTimeNowNs();
 
 #define sz_rfbStatisticsMsg sizeof(rfbStatisticsMsg)
 

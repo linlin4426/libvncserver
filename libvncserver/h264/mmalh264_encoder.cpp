@@ -5,6 +5,7 @@
 #include "interface/mmal/mmal.h"
 #include "interface/mmal/util/mmal_default_components.h"
 #include "mmalh264_encoder.h"
+#include "common.h"
 //#include "timers.h"
 
 #define CHECK_STATUS(status, msg) if (status != MMAL_SUCCESS) { fprintf(stderr, msg"\n"); goto error; }
@@ -93,7 +94,8 @@ int mmalh264_encoder_init(int frame_width, int frame_height) {
     /* Set format of video decoder input port */
     format_in = encoder->input[0]->format;
     format_in->type = MMAL_ES_TYPE_VIDEO;
-    format_in->encoding = MMAL_ENCODING_I420;
+    format_in->encoding = MMAL_ENCODING_BGRA;
+    //format_in->encoding = MMAL_ENCODING_RGBA;
     format_in->es->video.width = frame_width;
     format_in->es->video.height = frame_height;
     format_in->es->video.frame_rate.num = 30;
@@ -131,45 +133,75 @@ int mmalh264_encoder_init(int frame_width, int frame_height) {
         MMAL_PARAMETER_VIDEO_PROFILE_T param;
         param.hdr.id = MMAL_PARAMETER_PROFILE;
         param.hdr.size = sizeof(param);
-        param.profile[0].profile = MMAL_VIDEO_PROFILE_H264_BASELINE;
+        param.profile[0].profile = MMAL_VIDEO_PROFILE_H264_CONSTRAINED_BASELINE;
         param.profile[0].level = MMAL_VIDEO_LEVEL_H264_42;
         status = mmal_port_parameter_set(encoder_output, &param.hdr);
         CHECK_STATUS(status, "failed to set port parameter MMAL_PARAMETER_PROFILE");
     }
 
+    //seems to make image crisper and increases framerate ?
+    {
+        MMAL_PARAMETER_BOOLEAN_T param = {{MMAL_PARAMETER_VIDEO_ENCODE_H264_DEBLOCK_IDC, sizeof(param)}, 0};
+        status = mmal_port_parameter_set(encoder_output, &param.hdr);
+        CHECK_STATUS(status, "failed to set port parameter MMAL_PARAMETER_VIDEO_ENCODE_H264_DEBLOCK_IDC");
+    }
+
+//doesnt work here
 //    {
-//        MMAL_PARAMETER_UINT32_T param = {{ MMAL_PARAMETER_VIDEO_BIT_RATE, sizeof(param)}, 9000000 };
+//        MMAL_PARAMETER_BOOLEAN_T param = {{MMAL_PARAMETER_VIDEO_ENCODE_H264_DISABLE_CABAC, sizeof(param)}, 1};
 //        status = mmal_port_parameter_set(encoder_output, &param.hdr);
-//        CHECK_STATUS(status, "failed to set port parameter MMAL_PARAMETER_VIDEO_BIT_RATE");
+//        CHECK_STATUS(status, "failed to set port parameter MMAL_PARAMETER_VIDEO_ENCODE_H264_DISABLE_CABAC");
+//    }
+
+////doesn't work
+////    {
+////        MMAL_PARAMETER_UINT32_T param = {{ MMAL_PARAMETER_VIDEO_BIT_RATE, sizeof(param)}, 9000000 };
+////        status = mmal_port_parameter_set(encoder_output, &param.hdr);
+////        CHECK_STATUS(status, "failed to set port parameter MMAL_PARAMETER_VIDEO_BIT_RATE");
+////    }
+
+//    {
+//        MMAL_PARAMETER_VIDEO_RATECONTROL_T param = {{MMAL_PARAMETER_RATECONTROL , sizeof(param)}, MMAL_VIDEO_RATECONTROL_CONSTANT_SKIP_FRAMES };
+//        status = mmal_port_parameter_set(encoder_output, &param.hdr);
+//        CHECK_STATUS(status, "failed to set port parameter MMAL_PARAMETER_RATECONTROL");
 //    }
 
     //quality (quantisationParameter 0..51)
     {
-        MMAL_PARAMETER_UINT32_T param = {{MMAL_PARAMETER_VIDEO_ENCODE_INITIAL_QUANT, sizeof(param)}, 20};
+        MMAL_PARAMETER_UINT32_T param = {{MMAL_PARAMETER_VIDEO_ENCODE_INITIAL_QUANT, sizeof(param)}, 10};
         status = mmal_port_parameter_set(encoder_output, &param.hdr);
         CHECK_STATUS(status, "failed to set port parameter MMAL_PARAMETER_VIDEO_ENCODE_INITIAL_QUANT");
     }
 
     {
-        MMAL_PARAMETER_UINT32_T param = {{MMAL_PARAMETER_VIDEO_ENCODE_MIN_QUANT, sizeof(param)}, 20};
+        MMAL_PARAMETER_UINT32_T param = {{MMAL_PARAMETER_VIDEO_ENCODE_MIN_QUANT, sizeof(param)}, 10};
         status = mmal_port_parameter_set(encoder_output, &param.hdr);
         CHECK_STATUS(status, "failed to set port parameter MMAL_PARAMETER_VIDEO_ENCODE_MIN_QUANT");
     }
 
     {
-        MMAL_PARAMETER_UINT32_T param = {{MMAL_PARAMETER_VIDEO_ENCODE_MAX_QUANT, sizeof(param)}, 20};
+        MMAL_PARAMETER_UINT32_T param = {{MMAL_PARAMETER_VIDEO_ENCODE_MAX_QUANT, sizeof(param)}, 10};
         status = mmal_port_parameter_set(encoder_output, &param.hdr);
         CHECK_STATUS(status, "failed to set port parameter MMAL_PARAMETER_VIDEO_ENCODE_MAX_QUANT");
     }
 
-//maybe this causes the broken image after a few seconds.
 //    {
-//        //intra refresh
-//        MMAL_PARAMETER_VIDEO_INTRA_REFRESH_T param = {{MMAL_PARAMETER_VIDEO_INTRA_REFRESH, sizeof(param)}, 500000000};
+//        MMAL_PARAMETER_UINT32_T param = {{MMAL_PARAMETER_VIDEO_ENCODE_SPS_TIMING, sizeof(param)}, 0};
 //        status = mmal_port_parameter_set(encoder_output, &param.hdr);
-//        CHECK_STATUS(status, "failed to set port parameter MMAL_PARAMETER_INTRAPERIOD");
+//        CHECK_STATUS(status, "failed to set port parameter MMAL_PARAMETER_VIDEO_ENCODE_SPS_TIMING");
 //    }
 
+//
+//    {
+//        //intra refresh
+//        MMAL_PARAMETER_VIDEO_INTRA_REFRESH_T param;
+//        param.hdr.id = MMAL_PARAMETER_VIDEO_INTRA_REFRESH;
+//        param.hdr.size = sizeof(param);
+//        param.refresh_mode = MMAL_VIDEO_INTRA_REFRESH_MAX;
+//        status = mmal_port_parameter_set(encoder_output, &param.hdr);
+//        CHECK_STATUS(status, "failed to set port parameter MMAL_PARAMETER_VIDEO_INTRA_REFRESH");
+//    }
+//
     {
         MMAL_PARAMETER_UINT32_T param = {{MMAL_PARAMETER_INTRAPERIOD, sizeof(param)}, 500000000};
         status = mmal_port_parameter_set(encoder_output, &param.hdr);
@@ -177,17 +209,10 @@ int mmalh264_encoder_init(int frame_width, int frame_height) {
     }
 
     {
-        MMAL_PARAMETER_BOOLEAN_T param = {{MMAL_PARAMETER_VIDEO_ENCODE_HEADERS_WITH_FRAME, sizeof(param)}, 1};
+        MMAL_PARAMETER_BOOLEAN_T param = {{MMAL_PARAMETER_VIDEO_ENCODE_HEADERS_WITH_FRAME, sizeof(param)}, 0};
         status = mmal_port_parameter_set(encoder_output, &param.hdr);
         CHECK_STATUS(status, "failed to set port parameter MMAL_PARAMETER_VIDEO_ENCODE_HEADERS_WITH_FRAME");
     }
-
-//does not work.
-//    {
-//        MMAL_PARAMETER_BOOLEAN_T param = {{MMAL_PARAMETER_VIDEO_ENCODE_H264_LOW_LATENCY, sizeof(param)}, 1};
-//        status = mmal_port_parameter_set(encoder_output, &param.hdr);
-//        CHECK_STATUS(status, "failed to set port parameter MMAL_PARAMETER_VIDEO_ENCODE_H264_LOW_LATENCY");
-//    }
 
     //MMAL_PARAMETER_VIDEO_IMMUTABLE_INPUT
 
@@ -258,8 +283,9 @@ int mmalh264_encoder_encode(u_char *frame_buffer, int width, int height, onFrame
 
     /* Send data to decode to the input port of the video encoder */
     if ((bufferHeader = mmal_queue_get(pool_in->queue)) != NULL) {
+        //rgba2Yuv(bufferHeader->data, frame_buffer, width, height);
         bufferHeader->data = frame_buffer;
-        bufferHeader->length = width * height * 3 / 2;
+        bufferHeader->length = width * height * 4;
         bufferHeader->offset = 0;
         bufferHeader->pts = bufferHeader->dts = MMAL_TIME_UNKNOWN;
         bufferHeader->flags = MMAL_BUFFER_HEADER_FLAG_EOS;
@@ -269,7 +295,7 @@ int mmalh264_encoder_encode(u_char *frame_buffer, int width, int height, onFrame
         //if(!encode_timer) encode_timer = start_timer("encode");
     }
 
-    /* Get our decoded frames */
+    /* Get our encoded frames */
     while ((bufferHeader = mmal_queue_get(context.queue)) != NULL) {
         /* We have a frame, do something with it (why not display it for instance?).
          * Once we're done with it, we release it. It will automatically go back

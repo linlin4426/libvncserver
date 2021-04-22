@@ -921,8 +921,8 @@ rfbScreenInfoPtr rfbGetScreen(int* argc,char** argv,
    screen->autoPort=FALSE;
    screen->clientHead=NULL;
    screen->pointerClient=NULL;
-   screen->port=5900;
-   screen->ipv6port=5900;
+   screen->port=5901;
+   screen->ipv6port=5901;
    screen->socketState=RFB_SOCKET_INIT;
 
    screen->inetdInitDone = FALSE;

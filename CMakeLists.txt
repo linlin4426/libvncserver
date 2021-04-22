@@ -497,7 +497,7 @@ else()
   set(LIBVNCCLIENT_SOURCES
     ${LIBVNCCLIENT_SOURCES}
     ${COMMON_DIR}/minilzo.c
-  )
+          examples/linuxvncserver/linuxvncserver.c examples/linuxvncserver/mouse.c)
 endif()
 
 if(JPEG_FOUND)
@@ -570,7 +570,7 @@ if(LIBVNCSERVER_WITH_WEBSOCKETS)
 endif(LIBVNCSERVER_WITH_WEBSOCKETS)
 
 add_library(vncclient ${LIBVNCCLIENT_SOURCES})
-add_library(vncserver ${LIBVNCSERVER_SOURCES} libvncserver/h264/common.h)
+add_library(vncserver ${LIBVNCSERVER_SOURCES} libvncserver/h264/common.h libvncserver/h264/mmalh264.h)
 if(WIN32)
   set(ADDITIONAL_LIBS ${ADDITIONAL_LIBS} ws2_32)
   if(WITH_TIGHTVNC_FILETRANSFER)
@@ -677,7 +677,6 @@ endif(WITH_THREADS AND (CMAKE_USE_PTHREADS_INIT OR CMAKE_USE_WIN32_THREADS_INIT)
 if(WITH_THREADS AND WITH_TIGHTVNC_FILETRANSFER AND CMAKE_USE_PTHREADS_INIT)
   set(LIBVNCSERVER_EXAMPLES
     ${LIBVNCSERVER_EXAMPLES}
-    filetransfer
   )
 endif(WITH_THREADS AND WITH_TIGHTVNC_FILETRANSFER AND CMAKE_USE_PTHREADS_INIT)
 
@@ -697,6 +696,8 @@ if(ANDROID)
     androidvncserver
   )
 endif(ANDROID)
+
+
 
 set(LIBVNCCLIENT_EXAMPLES
     backchannel
@@ -726,6 +727,38 @@ if(FFMPEG_FOUND)
     vnc2mpg
   )
 endif(FFMPEG_FOUND)
+
+### linux vncserver example begin
+include_directories(/usr/local/include/libevdev-1.0)
+add_executable(linuxvncserver
+        ${LIBVNCSRVEXAMPLE_DIR}/linuxvncserver/linuxvncserver.c
+        ${LIBVNCSRVEXAMPLE_DIR}/linuxvncserver/display.c
+        ${LIBVNCSRVEXAMPLE_DIR}/linuxvncserver/keyboard.c
+        ${LIBVNCSRVEXAMPLE_DIR}/linuxvncserver/mouse.c
+        )
+add_library(libevdev SHARED IMPORTED)
+set_target_properties(libevdev PROPERTIES IMPORTED_LOCATION /usr/local/lib/libevdev.so)
+set_target_properties(linuxvncserver PROPERTIES OUTPUT_NAME linuxvncserver)
+set_target_properties(linuxvncserver PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/examples/linuxvncserver)
+target_link_libraries(linuxvncserver
+        vncserver
+        /opt/vc/lib/libvchostif.a
+        /opt/vc/lib/libvchiq_arm.so
+        /opt/vc/lib/libvcos.so
+        /opt/vc/lib/libbcm_host.so
+        #rpi memcopy dependencies
+        /opt/vc/lib/libvcsm.so
+        /usr/lib/librpicopy.so
+        /usr/lib/libvc4regmap.so
+        /usr/local/lib/librpimemmgr.so
+        /usr/lib/libmailbox.so
+        pthread
+        ${CMAKE_THREAD_LIBS_INIT}
+        ${CARBON_LIBRARY}
+        ${IOKIT_LIBRARY}
+        ${IOSURFACE_LIBRARY}
+)
+### linux vncserver example end
 
 
 foreach(e ${LIBVNCSERVER_EXAMPLES})
