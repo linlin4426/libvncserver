@@ -1,6 +1,5 @@
 #include <stdlib.h>
 #include <signal.h>
-#include "display.h"
 #include "rfb/rfb.h"
 #include "rfb/keysym.h"
 #include "rfb/rfbregion.h"
@@ -51,13 +50,15 @@ int main(int argc,char** argv)
 {
     signal(SIGINT, signal_handler);
 
-    //initialize display
-    MappedRegion mappedRegion = getXvfbBuffer();
-    char* inputFrameBuffer = mappedRegion->addr;
-    if(!inputFrameBuffer) {
-        fprintf(stderr, "Couldn't open fbp.");
-        goto error;
-    }
+//    //initialize display
+//    MappedRegion mappedRegion = getXvfbBuffer();
+//    char* inputFrameBuffer = mappedRegion->addr;
+//    if(!inputFrameBuffer) {
+//        fprintf(stderr, "Couldn't open fbp.");
+//        goto error;
+//    }
+
+    char* inputFrameBuffer = calloc(1, 1920*1080*4);
 
     if(initMouse() == FALSE) {
         fprintf(stderr, "Couldn't not init mouse.\n");
@@ -67,6 +68,7 @@ int main(int argc,char** argv)
     rfbScreenInfoPtr rfbScreen = rfbGetScreen(&argc, argv, width, height, 8, 3, 4);
     rfbScreen->frameBuffer = (char*)inputFrameBuffer;
     rfbInitServer(rfbScreen);
+    printf("initialized!\n");
     while(rfbIsActive(rfbScreen) && !done) {
         setMousePosition(rfbScreen->cursorX, rfbScreen->cursorY);
         rfbProcessEvents(rfbScreen, 16666);

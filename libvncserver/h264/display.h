@@ -32,8 +32,8 @@ MappedRegion getXvfbBuffer();
 
 /////////////////////////////////////////////////////
 
-void initDmaCopy(int width, int height, uint8_t **frameBuffer);
-void dmaCopy();
+void initDmaCopy(int width, int height) ;
+void dmaCopy(int dstAddr);
 void destroyDmaCopy();
 
 #endif //LIBVNCSERVER_DISPLAY_H

@@ -20,7 +20,7 @@ static uint64_t desiredFrameDurationNs = 33333333; //fps
 
 static FILE *fid = NULL;
 
-extern "C" void handle_frame(MMAL_BUFFER_HEADER_T *bufferHeader) {
+extern void handle_frame(MMAL_BUFFER_HEADER_T *bufferHeader) {
 
     //DEBUG stream to file:
 //    if(fid == NULL) {
@@ -86,7 +86,7 @@ error:
     return result;
 }
 
-extern "C" rfbBool rfbSendFrameEncodingMmalH264(rfbClientPtr cl) {
+extern rfbBool rfbSendFrameEncodingMmalH264(rfbClientPtr cl) {
     rfbBool result = TRUE;
     int w = cl->screen->width;
     int h = cl->screen->height;

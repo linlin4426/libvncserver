@@ -13,7 +13,12 @@
 #include <rpimemmgr.h>
 #include "display.h"
 #include "X11/XWDFile.h"
-
+#define _XOPEN_SOURCE 700
+#include <fcntl.h> /* open */
+#include <stdint.h> /* uint64_t  */
+#include <stdio.h> /* printf */
+#include <stdlib.h> /* size_t */
+#include <unistd.h> /* pread, sysconf */
 
 //use with xvfb (virtual framebuffer):
 //Xvfb :99 -screen 0 1920x1080x24 -fbdir /var/tmp
@@ -138,7 +143,7 @@ static uint32_t height = 0;
 static uint32_t frameSize = 0;
 static uint32_t src_addr, dst_addr;
 
-void initDmaCopy(int width, int height, u_int8_t **frameBuffer) {
+void initDmaCopy(int width, int height) {
     struct fb_var_screeninfo vinfo;
     struct fb_fix_screeninfo finfo;
     fbfd = open("/dev/fb0", O_RDWR);
@@ -154,19 +159,18 @@ void initDmaCopy(int width, int height, u_int8_t **frameBuffer) {
 
     if (rpicopy_init())
         fprintf(stderr,"rpicopy_init\n");
-    if (rpimemmgr_init(&st))
-        fprintf(stderr, "rpimemmgr_init\n");
-    if (rpimemmgr_alloc_vcsm(frameSize, 1, VCSM_CACHE_TYPE_NONE, (void**) frameBuffer, &dst_addr, &st))
-        fprintf(stderr, "rpimemmgr_alloc_vcsm\n");
-
+//    if (rpimemmgr_init(&st))
+//        fprintf(stderr, "rpimemmgr_init\n");
+//    if (rpimemmgr_alloc_vcsm(frameSize, 1, VCSM_CACHE_TYPE_NONE, (void**) frameBuffer, &dst_addr, &st))
+//        fprintf(stderr, "rpimemmgr_alloc_vcsm\n");
     memcpy_dma_config(dst_addr, src_addr, frameSize, 1, 0);
 }
 
-void dmaCopy() {
+void dmaCopy(int dst_addr) {
     memcpy_dma(dst_addr, src_addr, frameSize);
 }
 
 void destroyDmaCopy() {
     rpicopy_finalize();
-    rpimemmgr_finalize(&st);
+//    rpimemmgr_finalize(&st);
 }

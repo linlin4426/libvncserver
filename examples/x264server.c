@@ -5,21 +5,21 @@
 #include "rfb/keysym.h"
 #include "rfb/rfbregion.h"
 
-void fillInputBuffer(char *buffer, int i, int frame_width, int frame_height, int mousex, int mousey) {
-  //generate sample image data
-  u_int32_t offset = 0;
-  u_int32_t stride = frame_width * 4;
-  for(int y = 0; y < frame_height; y++) {
-    for(int x = 0; x < frame_width; x++) {
-      buffer[offset+0] = (u_char)(x + (y % 255) % 255);
-      buffer[offset+1] = (u_char)((x + i + ((y + i) % 255)) % 255);
-      buffer[offset+2] = (u_char)((x + i*2 + ((y + i*2) % 255)) % 255);
-
-      buffer[offset+3] = 255;
-      offset += 4;
-    }
-  }
-}
+//void fillInputBuffer(char *buffer, int i, int frame_width, int frame_height, int mousex, int mousey) {
+//  //generate sample image data
+//  u_int32_t offset = 0;
+//  u_int32_t stride = frame_width * 4;
+//  for(int y = 0; y < frame_height; y++) {
+//    for(int x = 0; x < frame_width; x++) {
+//      buffer[offset+0] = (uint8_t)(x + (y % 255) % 255);
+//      buffer[offset+1] = (uint8_t)((x + i + ((y + i) % 255)) % 255);
+//      buffer[offset+2] = (uint8_t)((x + i*2 + ((y + i*2) % 255)) % 255);
+//
+//      buffer[offset+3] = 255;
+//      offset += 4;
+//    }
+//  }
+//}
 
 void paintCursor(char *buffer, int i, int frame_width, int frame_height, int mousex, int mousey) {
     const int cursor_size = 5;
@@ -45,7 +45,7 @@ int main(int argc,char** argv)
 {
   rfbScreenInfoPtr rfbScreen = rfbGetScreen(&argc, argv, width, height, 8, 3, 4);
   rfbScreen->frameBuffer=calloc(width * height * 4, 1);
-  fillInputBuffer(rfbScreen->frameBuffer, 10, width, height, 100, 100);
+//  fillInputBuffer(rfbScreen->frameBuffer, 10, width, height, 100, 100);
   rfbInitServer(rfbScreen);
 
   {
@@ -55,10 +55,10 @@ int main(int argc,char** argv)
 //      rfbLog("[%d/%d]\n",rfbScreen->cursorX,rfbScreen->cursorY);
       if(rfbScreen->clientHead && rfbScreen->clientHead->preferredEncoding == rfbEncodingX264) {
           if(rfbScreen->cursorX > 3 && rfbScreen->cursorX < width-3 && rfbScreen->cursorY > 3 && rfbScreen->cursorY < height-3) {
-              fillInputBuffer(rfbScreen->frameBuffer, counter, width, height, rfbScreen->cursorX, rfbScreen->cursorY);
+//              fillInputBuffer(rfbScreen->frameBuffer, counter, width, height, rfbScreen->cursorX, rfbScreen->cursorY);
               paintCursor(rfbScreen->frameBuffer, 10, width, height, rfbScreen->cursorX, rfbScreen->cursorY);
           } else {
-              fillInputBuffer(rfbScreen->frameBuffer, counter, width, height, 100, 100);
+//              fillInputBuffer(rfbScreen->frameBuffer, counter, width, height, 100, 100);
               paintCursor(rfbScreen->frameBuffer, 10, width, height, 100, 100);
           }
       }

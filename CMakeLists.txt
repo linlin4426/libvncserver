@@ -1,8 +1,7 @@
 cmake_minimum_required(VERSION 3.4)
 
-message("Hello Cmake")
-
 project(LibVNCServer VERSION 0.9.13 LANGUAGES C CXX)
+
 include(CheckFunctionExists)
 include(CheckSymbolExists)
 include(CheckIncludeFile)
@@ -279,6 +278,11 @@ else()
   set(MMALH264_LIBRARIES "") # would otherwise contain -NOTFOUND, confusing target_link_libraries()
 endif(MMALH264_FOUND)
 
+#if(WITH_WEBSOCKETS AND (LIBVNCSERVER_HAVE_HTOBE64 OR LIBVNCSERVER_HAVE_OSSWAPHOSTTOBIGINT64))
+if(WITH_WEBSOCKETS)
+  set(LIBVNCSERVER_WITH_WEBSOCKETS 1)
+endif()
+
 if(NOT OPENSSL_FOUND)
     unset(OPENSSL_LIBRARIES) # would otherwise contain -NOTFOUND, confusing target_link_libraries()
 endif()
@@ -301,10 +305,6 @@ elseif(OPENSSL_FOUND)
 else()
   message(STATUS "Building crypto with builtin functions, only including SHA1 and D3DES")
   set(CRYPTO_SOURCES ${COMMON_DIR}/crypto_included.c ${COMMON_DIR}/sha1.c ${COMMON_DIR}/d3des.c)
-endif()
-
-if(WITH_WEBSOCKETS AND (LIBVNCSERVER_HAVE_HTOBE64 OR LIBVNCSERVER_HAVE_OSSWAPHOSTTOBIGINT64))
-  set(LIBVNCSERVER_WITH_WEBSOCKETS 1)
 endif()
 
 if(WITH_GCRYPT AND LIBGCRYPT_LIBRARIES)
@@ -517,7 +517,7 @@ if(X264_FOUND)
   add_definitions(-DLIBVNCSERVER_HAVE_LIBX264)
   include_directories(${X264_INCLUDE_DIR})
   set(X264_C
-          ${LIBVNCSERVER_DIR}/h264/common.cpp
+          ${LIBVNCSERVER_DIR}/h264/common.c
           ${LIBVNCSERVER_DIR}/h264/x264.c
   )
 endif(X264_FOUND)
@@ -526,8 +526,8 @@ if(OPENH264_FOUND)
   add_definitions(-DLIBVNCSERVER_HAVE_LIBOPENH264)
   include_directories(${OPENH264_INCLUDE_DIR})
   set(OPENH264_C
-          ${LIBVNCSERVER_DIR}/h264/common.cpp
-          ${LIBVNCSERVER_DIR}/h264/openh264.cpp
+          ${LIBVNCSERVER_DIR}/h264/common.c
+          ${LIBVNCSERVER_DIR}/h264/openh264.c
   )
 endif(OPENH264_FOUND)
 
@@ -535,9 +535,10 @@ if(MMALH264_FOUND)
   add_definitions(-DLIBVNCSERVER_HAVE_MMALOPENH264)
   include_directories(${MMALH264_INCLUDE_DIR})
   set(MMALH264_C
-          ${LIBVNCSERVER_DIR}/h264/common.cpp
-          ${LIBVNCSERVER_DIR}/h264/mmalh264.cpp
-          ${LIBVNCSERVER_DIR}/h264/mmalh264_encoder.cpp
+          ${LIBVNCSERVER_DIR}/h264/common.c
+          ${LIBVNCSERVER_DIR}/h264/mmalh264.c
+          ${LIBVNCSERVER_DIR}/h264/mmalh264_encoder.c
+          ${LIBVNCSERVER_DIR}/h264/display.c
   )
 endif(MMALH264_FOUND)
 
@@ -570,7 +571,7 @@ if(LIBVNCSERVER_WITH_WEBSOCKETS)
 endif(LIBVNCSERVER_WITH_WEBSOCKETS)
 
 add_library(vncclient ${LIBVNCCLIENT_SOURCES})
-add_library(vncserver ${LIBVNCSERVER_SOURCES} libvncserver/h264/common.h libvncserver/h264/mmalh264.h)
+add_library(vncserver ${LIBVNCSERVER_SOURCES})
 if(WIN32)
   set(ADDITIONAL_LIBS ${ADDITIONAL_LIBS} ws2_32)
   if(WITH_TIGHTVNC_FILETRANSFER)
@@ -641,6 +642,16 @@ target_link_libraries(vncserver
                       ${OPENSSL_LIBRARIES}
                       ${OPENH264_LIBRARIES}
                       ${MMALH264_LIBRARIES}
+                      /opt/vc/lib/libvchostif.a
+                      /opt/vc/lib/libvchiq_arm.so
+                      /opt/vc/lib/libvcos.so
+                      /opt/vc/lib/libbcm_host.so
+                      #rpi memcopy dependencies
+                      /opt/vc/lib/libvcsm.so
+                      /usr/lib/librpicopy.so
+                      /usr/lib/libvc4regmap.so
+                      /usr/local/lib/librpimemmgr.so
+                      /usr/lib/libmailbox.so
 )
 
 SET_TARGET_PROPERTIES(vncclient vncserver
@@ -732,7 +743,7 @@ endif(FFMPEG_FOUND)
 include_directories(/usr/local/include/libevdev-1.0)
 add_executable(linuxvncserver
         ${LIBVNCSRVEXAMPLE_DIR}/linuxvncserver/linuxvncserver.c
-        ${LIBVNCSRVEXAMPLE_DIR}/linuxvncserver/display.c
+#        ${LIBVNCSRVEXAMPLE_DIR}/linuxvncserver/display.c
         ${LIBVNCSRVEXAMPLE_DIR}/linuxvncserver/keyboard.c
         ${LIBVNCSRVEXAMPLE_DIR}/linuxvncserver/mouse.c
         )

@@ -4,8 +4,9 @@ void fillInputBuffer(char *buffer, int i, int frame_width, int frame_height) {
     //generate sample image data
     u_int32_t offset = 0;
     u_int32_t stride = frame_width * 4;
-    for(int y = 0; y < frame_height; y++) {
-        for(int x = 0; x < frame_width; x++) {
+    int x, y;
+    for(y = 0; y < frame_height; y++) {
+        for(x = 0; x < frame_width; x++) {
             buffer[offset+0] = (u_char)(x + (y % 255) % 255);
             buffer[offset+1] = (u_char)((x + i + ((y + i) % 255)) % 255);
             buffer[offset+2] = (u_char)((x + i*2 + ((y + i*2) % 255)) % 255);

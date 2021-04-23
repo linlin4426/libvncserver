@@ -1,12 +1,19 @@
-#include <cstdint>
+#include <fcntl.h>
+#include <rpimemmgr.h>
 #include "mmalh264_encoder.h"
 #include "rfb/rfb.h"
 #include "interface/vcos/vcos_semaphore.h"
 #include "interface/mmal/mmal.h"
+#include "interface/mmal/mmal_types.h"
+#include <interface/mmal/vc/mmal_vc_shm.h>
+#include <rpicopy.h>
+#include "interface/mmal/util/mmal_util.h"
 #include "interface/mmal/util/mmal_default_components.h"
+#include "interface/mmal/util/mmal_util_params.h"
 #include "mmalh264_encoder.h"
 #include "common.h"
 //#include "timers.h"
+#include "display.h"
 
 #define CHECK_STATUS(status, msg) if (status != MMAL_SUCCESS) { fprintf(stderr, msg"\n"); goto error; }
 
@@ -24,6 +31,54 @@ static MMAL_COMPONENT_T *encoder = 0;
 static MMAL_POOL_T *pool_in = 0;
 static MMAL_POOL_T *pool_out = 0;
 static unsigned int count;
+
+void default_control_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
+{
+    if(buffer->cmd == MMAL_EVENT_PARAMETER_CHANGED) {
+        printf("MMAL_EVENT_PARAMETER_CHANGED\n");
+    } else if(buffer->cmd == MMAL_EVENT_FORMAT_CHANGED) {
+        printf("MMAL_EVENT_FORMAT_CHANGED\n");
+    } else if(buffer->cmd == MMAL_EVENT_EOS) {
+        printf("MMAL_EVENT_EOS\n");
+    } else if(buffer->cmd == MMAL_EVENT_ERROR) {
+        printf("MMAL_EVENT_ERROR\n");
+        printf("Error type %d", *(MMAL_STATUS_T*)buffer->data);
+    }
+
+    //TODO:
+//    printf("control callback\n");
+
+//    if (buffer->cmd == MMAL_EVENT_PARAMETER_CHANGED)
+//    {
+//        MMAL_EVENT_PARAMETER_CHANGED_T *param = (MMAL_EVENT_PARAMETER_CHANGED_T *)buffer->data;
+//        switch (param->hdr.id)
+//        {
+//            case MMAL_PARAMETER_CAMERA_SETTINGS:
+//            {
+//                MMAL_PARAMETER_CAMERA_SETTINGS_T *settings = (MMAL_PARAMETER_CAMERA_SETTINGS_T*)param;
+//                vcos_log_error("Exposure now %u, analog gain %u/%u, digital gain %u/%u",
+//                               settings->exposure,
+//                               settings->analog_gain.num, settings->analog_gain.den,
+//                               settings->digital_gain.num, settings->digital_gain.den);
+//                vcos_log_error("AWB R=%u/%u, B=%u/%u",
+//                               settings->awb_red_gain.num, settings->awb_red_gain.den,
+//                               settings->awb_blue_gain.num, settings->awb_blue_gain.den);
+//            }
+//                break;
+//        }
+//    }
+//    else if (buffer->cmd == MMAL_EVENT_ERROR)
+//    {
+//        vcos_log_error("No data received from sensor. Check all connections, including the Sunny one on the camera board");
+//    }
+//    else
+//    {
+//        vcos_log_error("Received unexpected camera control callback event, 0x%08x", buffer->cmd);
+//    }
+//
+    mmal_buffer_header_release(buffer);
+}
+
 
 static void log_mmal_es_format(MMAL_ES_FORMAT_T *format) {
     fprintf(stdout, " type: %i, fourcc: %4.4s\n", format->type, (char *) &format->encoding);
@@ -79,6 +134,7 @@ void h264_encoder_cleanup() {
 int mmalh264_encoder_init(int frame_width, int frame_height) {
     MMAL_STATUS_T status = MMAL_SUCCESS;
     MMAL_PORT_T *encoder_output = NULL;
+    MMAL_PORT_T *encoder_input = NULL;
     MMAL_ES_FORMAT_T *format_out = NULL;
     MMAL_ES_FORMAT_T *format_in = NULL;
 
@@ -124,6 +180,11 @@ int mmalh264_encoder_init(int frame_width, int frame_height) {
     format_out->es->video.par.den = 1;
     status = mmal_port_format_commit(encoder->output[0]);
     CHECK_STATUS(status, "failed to commit output port format");
+
+    encoder_input = encoder->input[0];
+
+    //configure zero copy mode on input
+    mmal_port_parameter_set_boolean(encoder_input, MMAL_PARAMETER_ZERO_COPY, 1);
 
     //configure h264 encoding
     //see https://raw.githubusercontent.com/raspberrypi/userland/master/host_applications/linux/apps/raspicam/RaspiVid.c
@@ -214,7 +275,7 @@ int mmalh264_encoder_init(int frame_width, int frame_height) {
         CHECK_STATUS(status, "failed to set port parameter MMAL_PARAMETER_VIDEO_ENCODE_HEADERS_WITH_FRAME");
     }
 
-    //MMAL_PARAMETER_VIDEO_IMMUTABLE_INPUT
+    //TODO:!!! MMAL_PARAMETER_VIDEO_IMMUTABLE_INPUT
 
     /* Display the input port format */
     fprintf(stdout, "Input port format for %s\n", encoder->input[0]->name);
@@ -232,8 +293,12 @@ int mmalh264_encoder_init(int frame_width, int frame_height) {
     encoder->output[0]->buffer_num = encoder->output[0]->buffer_num_min;
     //encoder->output[0]->buffer_size = FRAME_WIDTH * FRAME_HEIGHT * FRAME_BPP;
     encoder->output[0]->buffer_size = encoder->output[0]->buffer_size_recommended * 10;
-    pool_in = mmal_pool_create(encoder->input[0]->buffer_num,
-                               encoder->input[0]->buffer_size);
+    mmal_port_enable(encoder->control, default_control_callback);
+
+    pool_in = mmal_port_pool_create(encoder->input[0], encoder->input[0]->buffer_num, encoder->input[0]->buffer_size);
+
+//    pool_in = mmal_pool_create(encoder->input[0]->buffer_num,
+//                               encoder->input[0]->buffer_size);
     pool_out = mmal_pool_create(encoder->output[0]->buffer_num,
                                 encoder->output[0]->buffer_size);
 
@@ -248,8 +313,8 @@ int mmalh264_encoder_init(int frame_width, int frame_height) {
     context.queue = mmal_queue_create();
 
     /* Store a reference to our context in each port (will be used during callbacks) */
-    encoder->input[0]->userdata = static_cast<struct MMAL_PORT_USERDATA_T *>((void *) &context);
-    encoder->output[0]->userdata = static_cast<struct MMAL_PORT_USERDATA_T *>((void *) &context);
+    encoder->input[0]->userdata = ((void *) &context);
+    encoder->output[0]->userdata = ((void *) &context);
 
     /* Enable all the input port and the output port.
      * The callback specified here is the function which will be called when the buffer header
@@ -268,6 +333,12 @@ int mmalh264_encoder_init(int frame_width, int frame_height) {
     return status == MMAL_SUCCESS ? 0 : -1;
 }
 
+static uint8_t initialized = 0;
+static uint8_t *dstBuffer = NULL;
+
+static int mailbox_fd;
+static unsigned int vc_handle;
+
 int mmalh264_encoder_encode(u_char *frame_buffer, int width, int height, onFrameCb on_frame_cb) {
     MMAL_STATUS_T status = MMAL_SUCCESS;
 
@@ -284,7 +355,33 @@ int mmalh264_encoder_encode(u_char *frame_buffer, int width, int height, onFrame
     /* Send data to decode to the input port of the video encoder */
     if ((bufferHeader = mmal_queue_get(pool_in->queue)) != NULL) {
         //rgba2Yuv(bufferHeader->data, frame_buffer, width, height);
-        bufferHeader->data = frame_buffer;
+        printf("encode!\n");
+        if(!initialized) {
+            printf("initializing DMA transfer (%p)\n", bufferHeader->data);
+            vc_handle = vcsm_vc_hdl_from_ptr(bufferHeader->data);
+            mailbox_fd = mailbox_open();
+            initialized = 1;
+            int bufferBusAddr = mailbox_mem_lock(mailbox_fd, vc_handle);
+            initDmaCopy(width, height);
+            dmaCopy(bufferBusAddr);
+//            destroyDmaCopy();
+            mailbox_mem_unlock(mailbox_fd, bufferBusAddr);
+        } else {
+            printf("DMA!\n");
+            int bufferBusAddr = mailbox_mem_lock(mailbox_fd, vc_handle);
+            dmaCopy(bufferBusAddr);
+//            destroyDmaCopy();
+            mailbox_mem_unlock(mailbox_fd, bufferBusAddr);
+        }
+//        bufferHeader->data = frame_buffer;
+//        memcpy(bufferHeader->data, frame_buffer, width*height*4);
+//        if(!dmaInitialized) {
+//            initDmaCpy();
+//            dmaInitialized = 1;
+//        } else {
+//            dmaCpy(bufferHeader->data, finfo.smem_start, width*height*4);
+//        }
+
         bufferHeader->length = width * height * 4;
         bufferHeader->offset = 0;
         bufferHeader->pts = bufferHeader->dts = MMAL_TIME_UNKNOWN;

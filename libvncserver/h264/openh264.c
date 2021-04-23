@@ -1,7 +1,7 @@
 #include "codec_api.h"
 #include "common.h"
 
-static ISVCEncoder* encoder = NULL;
+static ISVCEncoder encoder = NULL;
 static u_char *yuv_buffer = NULL;
 
 static rfbBool initOpenH264(rfbClientPtr cl) {
@@ -21,7 +21,7 @@ static rfbBool initOpenH264(rfbClientPtr cl) {
     param.iPicWidth = cl->screen->width;
     param.iPicHeight = cl->screen->height;
     param.iTargetBitrate = 15000000;
-    encoder->Initialize(&param);
+    encoder->Initialize(&encoder, &param);
 
 //    SEncParamExt paramExt;
 //    memset (&paramExt, 0, sizeof (SEncParamExt));
@@ -49,7 +49,7 @@ error:
 
 static u_int64_t t0;
 
-extern "C" rfbBool rfbSendFrameEncodingOpenH264(rfbClientPtr cl) {
+extern rfbBool rfbSendFrameEncodingOpenH264(rfbClientPtr cl) {
     rfbBool result = TRUE;
     int w = cl->screen->width;
     int h = cl->screen->height;
@@ -93,7 +93,7 @@ extern "C" rfbBool rfbSendFrameEncodingOpenH264(rfbClientPtr cl) {
     pic.pData[0] = yuv_buffer;
     pic.pData[1] = pic.pData[0] + w * h;
     pic.pData[2] = pic.pData[1] + (w * h >> 2);
-    rv = encoder->EncodeFrame(&pic, &info);
+    rv = encoder->EncodeFrame(&encoder, &pic, &info);
 
     cl->rfbStatistics.encode_ts_end_ms = (uint32_t)(getTimeNowMs() - t0);
 
@@ -127,7 +127,7 @@ error:
 
 void rfbH264Cleanup(rfbScreenInfoPtr screen) {
     if (encoder) {
-        encoder->Uninitialize();
+        encoder->Uninitialize(&encoder);
         WelsDestroySVCEncoder(encoder);
     }
     free(yuv_buffer);
