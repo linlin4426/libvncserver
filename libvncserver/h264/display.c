@@ -146,6 +146,9 @@ static uint32_t src_addr, dst_addr;
 void initDmaCopy(int width, int height) {
     struct fb_var_screeninfo vinfo;
     struct fb_fix_screeninfo finfo;
+
+    printf("ioctl(fbfd, FBIOGET_FSCREENINFO, &finfo)\n");
+    sleep(1);
     fbfd = open("/dev/fb0", O_RDWR);
     if(ioctl(fbfd, FBIOGET_FSCREENINFO, &finfo) == -1)
     {
@@ -157,17 +160,22 @@ void initDmaCopy(int width, int height) {
 
     src_addr = finfo.smem_start;
 
+    printf("rpicopy_init\n");
+    sleep(1);
     if (rpicopy_init())
         fprintf(stderr,"rpicopy_init\n");
 //    if (rpimemmgr_init(&st))
 //        fprintf(stderr, "rpimemmgr_init\n");
 //    if (rpimemmgr_alloc_vcsm(frameSize, 1, VCSM_CACHE_TYPE_NONE, (void**) frameBuffer, &dst_addr, &st))
 //        fprintf(stderr, "rpimemmgr_alloc_vcsm\n");
-    memcpy_dma_config(dst_addr, src_addr, frameSize, 1, 0);
+
+//    printf("memcpy_dma_config\n");
+//    sleep(1);
+//    memcpy_dma_config(dst_addr, src_addr, frameSize, 1, 0);
 }
 
 void dmaCopy(int dst_addr) {
-    memcpy_dma(dst_addr, src_addr, frameSize);
+    memcpy_dma_config(dst_addr, src_addr, frameSize, 2, 1);
 }
 
 void destroyDmaCopy() {

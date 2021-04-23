@@ -154,7 +154,7 @@ int mmalh264_encoder_init(int frame_width, int frame_height) {
     //format_in->encoding = MMAL_ENCODING_RGBA;
     format_in->es->video.width = frame_width;
     format_in->es->video.height = frame_height;
-    format_in->es->video.frame_rate.num = 30;
+    format_in->es->video.frame_rate.num = 0;
     format_in->es->video.frame_rate.den = 1;
     format_in->es->video.par.num = 1;
     format_in->es->video.par.den = 1;
@@ -174,7 +174,7 @@ int mmalh264_encoder_init(int frame_width, int frame_height) {
     format_out->encoding = MMAL_ENCODING_H264;
     format_out->es->video.width = frame_width;
     format_out->es->video.height = frame_height;
-    format_out->es->video.frame_rate.num = 30;
+    format_out->es->video.frame_rate.num = 0;
     format_out->es->video.frame_rate.den = 1;
     format_out->es->video.par.num = 1;
     format_out->es->video.par.den = 1;
@@ -183,8 +183,11 @@ int mmalh264_encoder_init(int frame_width, int frame_height) {
 
     encoder_input = encoder->input[0];
 
+    encoder_input->priv
+
     //configure zero copy mode on input
     mmal_port_parameter_set_boolean(encoder_input, MMAL_PARAMETER_ZERO_COPY, 1);
+//    mmal_port_parameter_set_boolean(encoder_input, MMAL_PARAMETER_VIDEO_IMMUTABLE_INPUT, 1);
 
     //configure h264 encoding
     //see https://raw.githubusercontent.com/raspberrypi/userland/master/host_applications/linux/apps/raspicam/RaspiVid.c
@@ -229,19 +232,19 @@ int mmalh264_encoder_init(int frame_width, int frame_height) {
 
     //quality (quantisationParameter 0..51)
     {
-        MMAL_PARAMETER_UINT32_T param = {{MMAL_PARAMETER_VIDEO_ENCODE_INITIAL_QUANT, sizeof(param)}, 10};
+        MMAL_PARAMETER_UINT32_T param = {{MMAL_PARAMETER_VIDEO_ENCODE_INITIAL_QUANT, sizeof(param)}, 20};
         status = mmal_port_parameter_set(encoder_output, &param.hdr);
         CHECK_STATUS(status, "failed to set port parameter MMAL_PARAMETER_VIDEO_ENCODE_INITIAL_QUANT");
     }
 
     {
-        MMAL_PARAMETER_UINT32_T param = {{MMAL_PARAMETER_VIDEO_ENCODE_MIN_QUANT, sizeof(param)}, 10};
+        MMAL_PARAMETER_UINT32_T param = {{MMAL_PARAMETER_VIDEO_ENCODE_MIN_QUANT, sizeof(param)}, 20};
         status = mmal_port_parameter_set(encoder_output, &param.hdr);
         CHECK_STATUS(status, "failed to set port parameter MMAL_PARAMETER_VIDEO_ENCODE_MIN_QUANT");
     }
 
     {
-        MMAL_PARAMETER_UINT32_T param = {{MMAL_PARAMETER_VIDEO_ENCODE_MAX_QUANT, sizeof(param)}, 10};
+        MMAL_PARAMETER_UINT32_T param = {{MMAL_PARAMETER_VIDEO_ENCODE_MAX_QUANT, sizeof(param)}, 20};
         status = mmal_port_parameter_set(encoder_output, &param.hdr);
         CHECK_STATUS(status, "failed to set port parameter MMAL_PARAMETER_VIDEO_ENCODE_MAX_QUANT");
     }
@@ -264,7 +267,7 @@ int mmalh264_encoder_init(int frame_width, int frame_height) {
 //    }
 //
     {
-        MMAL_PARAMETER_UINT32_T param = {{MMAL_PARAMETER_INTRAPERIOD, sizeof(param)}, 500000000};
+        MMAL_PARAMETER_UINT32_T param = {{MMAL_PARAMETER_INTRAPERIOD, sizeof(param)}, 30};
         status = mmal_port_parameter_set(encoder_output, &param.hdr);
         CHECK_STATUS(status, "failed to set port parameter MMAL_PARAMETER_INTRAPERIOD");
     }
@@ -339,6 +342,8 @@ static uint8_t *dstBuffer = NULL;
 static int mailbox_fd;
 static unsigned int vc_handle;
 
+int bufferBusAddr;
+
 int mmalh264_encoder_encode(u_char *frame_buffer, int width, int height, onFrameCb on_frame_cb) {
     MMAL_STATUS_T status = MMAL_SUCCESS;
 
@@ -355,32 +360,31 @@ int mmalh264_encoder_encode(u_char *frame_buffer, int width, int height, onFrame
     /* Send data to decode to the input port of the video encoder */
     if ((bufferHeader = mmal_queue_get(pool_in->queue)) != NULL) {
         //rgba2Yuv(bufferHeader->data, frame_buffer, width, height);
-        printf("encode!\n");
         if(!initialized) {
             printf("initializing DMA transfer (%p)\n", bufferHeader->data);
+            printf("vcsm_vc_hdl_from_ptr(bufferHeader->data)\n");
+//            sleep(1);
             vc_handle = vcsm_vc_hdl_from_ptr(bufferHeader->data);
+            printf("mailbox_open()\n");
+//            sleep(1);
             mailbox_fd = mailbox_open();
             initialized = 1;
-            int bufferBusAddr = mailbox_mem_lock(mailbox_fd, vc_handle);
+            printf("mailbox_mem_lock()\n");
+//            sleep(1);
+            bufferBusAddr = mailbox_mem_lock(mailbox_fd, vc_handle);
+            printf("initDmaCopy()\n");
+//            sleep(1);
             initDmaCopy(width, height);
+            printf("dmaCopy()\n");
+//            sleep(1);
             dmaCopy(bufferBusAddr);
 //            destroyDmaCopy();
+            printf("unlock()\n");
+//            sleep(1);
             mailbox_mem_unlock(mailbox_fd, bufferBusAddr);
         } else {
-            printf("DMA!\n");
-            int bufferBusAddr = mailbox_mem_lock(mailbox_fd, vc_handle);
             dmaCopy(bufferBusAddr);
-//            destroyDmaCopy();
-            mailbox_mem_unlock(mailbox_fd, bufferBusAddr);
         }
-//        bufferHeader->data = frame_buffer;
-//        memcpy(bufferHeader->data, frame_buffer, width*height*4);
-//        if(!dmaInitialized) {
-//            initDmaCpy();
-//            dmaInitialized = 1;
-//        } else {
-//            dmaCpy(bufferHeader->data, finfo.smem_start, width*height*4);
-//        }
 
         bufferHeader->length = width * height * 4;
         bufferHeader->offset = 0;
