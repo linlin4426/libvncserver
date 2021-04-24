@@ -6,6 +6,8 @@
 #include "mouse.h"
 
 static int done = 0;
+//static int width = 1366;
+//static int height = 768;
 static int width = 1920;
 static int height = 1080;
 //static int width = 1920;

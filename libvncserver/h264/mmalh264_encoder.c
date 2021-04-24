@@ -7,6 +7,7 @@
 #include "interface/mmal/mmal_types.h"
 #include <interface/mmal/vc/mmal_vc_shm.h>
 #include <rpicopy.h>
+#include <bcm_host.h>
 #include "interface/mmal/util/mmal_util.h"
 #include "interface/mmal/util/mmal_default_components.h"
 #include "interface/mmal/util/mmal_util_params.h"
@@ -14,6 +15,7 @@
 #include "common.h"
 //#include "timers.h"
 #include "display.h"
+#include "interface/vmcs_host/vc_dispmanx.h"
 
 #define CHECK_STATUS(status, msg) if (status != MMAL_SUCCESS) { fprintf(stderr, msg"\n"); goto error; }
 
@@ -183,10 +185,8 @@ int mmalh264_encoder_init(int frame_width, int frame_height) {
 
     encoder_input = encoder->input[0];
 
-    encoder_input->priv
-
     //configure zero copy mode on input
-    mmal_port_parameter_set_boolean(encoder_input, MMAL_PARAMETER_ZERO_COPY, 1);
+//    mmal_port_parameter_set_boolean(encoder_input, MMAL_PARAMETER_ZERO_COPY, 1);
 //    mmal_port_parameter_set_boolean(encoder_input, MMAL_PARAMETER_VIDEO_IMMUTABLE_INPUT, 1);
 
     //configure h264 encoding
@@ -337,12 +337,21 @@ int mmalh264_encoder_init(int frame_width, int frame_height) {
 }
 
 static uint8_t initialized = 0;
-static uint8_t *dstBuffer = NULL;
 
-static int mailbox_fd;
-static unsigned int vc_handle;
+static VC_RECT_T dispmanx_rect;
+static DISPMANX_DISPLAY_HANDLE_T dispmanx_display;
+static DISPMANX_RESOURCE_HANDLE_T dispmanx_resource;
 
-int bufferBusAddr;
+void initDispManx(int width, int height) {
+    bcm_host_init();
+    uint32_t native_image_handle;
+    dispmanx_display = vc_dispmanx_display_open(0);
+    DISPMANX_MODEINFO_T modeinfo;
+    vc_dispmanx_display_get_info(dispmanx_display, &modeinfo);
+    dispmanx_resource = vc_dispmanx_resource_create(
+        VC_IMAGE_ARGB8888, width, height, &native_image_handle);
+    vc_dispmanx_rect_set(&dispmanx_rect, 0, 0, width, height);
+}
 
 int mmalh264_encoder_encode(u_char *frame_buffer, int width, int height, onFrameCb on_frame_cb) {
     MMAL_STATUS_T status = MMAL_SUCCESS;
@@ -359,32 +368,14 @@ int mmalh264_encoder_encode(u_char *frame_buffer, int width, int height, onFrame
 
     /* Send data to decode to the input port of the video encoder */
     if ((bufferHeader = mmal_queue_get(pool_in->queue)) != NULL) {
+
         //rgba2Yuv(bufferHeader->data, frame_buffer, width, height);
         if(!initialized) {
-            printf("initializing DMA transfer (%p)\n", bufferHeader->data);
-            printf("vcsm_vc_hdl_from_ptr(bufferHeader->data)\n");
-//            sleep(1);
-            vc_handle = vcsm_vc_hdl_from_ptr(bufferHeader->data);
-            printf("mailbox_open()\n");
-//            sleep(1);
-            mailbox_fd = mailbox_open();
+            initDispManx(width, height);
             initialized = 1;
-            printf("mailbox_mem_lock()\n");
-//            sleep(1);
-            bufferBusAddr = mailbox_mem_lock(mailbox_fd, vc_handle);
-            printf("initDmaCopy()\n");
-//            sleep(1);
-            initDmaCopy(width, height);
-            printf("dmaCopy()\n");
-//            sleep(1);
-            dmaCopy(bufferBusAddr);
-//            destroyDmaCopy();
-            printf("unlock()\n");
-//            sleep(1);
-            mailbox_mem_unlock(mailbox_fd, bufferBusAddr);
-        } else {
-            dmaCopy(bufferBusAddr);
         }
+        vc_dispmanx_snapshot(dispmanx_display, dispmanx_resource, DISPMANX_NO_ROTATE);
+        vc_dispmanx_resource_read_data(dispmanx_resource, &dispmanx_rect, bufferHeader->data, width*4);
 
         bufferHeader->length = width * height * 4;
         bufferHeader->offset = 0;
