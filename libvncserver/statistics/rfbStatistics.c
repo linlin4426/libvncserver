@@ -2,6 +2,8 @@
 #include "rfbStatistics.h"
 #include "rfb/rfb.h"
 
+uint64_t t0_ns = 0;
+
 uint64_t getTimeNowMs() {
     struct timespec now = {};
     clock_gettime( CLOCK_MONOTONIC_RAW, &now );
@@ -21,6 +23,14 @@ uint64_t getTimeNowNs() {
     clock_gettime( CLOCK_MONOTONIC_RAW, &now );
     uint64_t now_ns = (uint64_t)now.tv_sec * UINT64_C(1000000000) + (uint64_t)now.tv_nsec;
     return now_ns;
+}
+
+void startCaptureStatistics() {
+    t0_ns = getTimeNowNs();
+}
+
+uint64_t getCaptureTimeNs() {
+    return getTimeNowNs()-t0_ns;
 }
 
 rfbBool rfbSendStatistics(rfbClientPtr cl) {

@@ -25,7 +25,11 @@ typedef struct rfbStatisticsMsg {
 uint64_t getTimeNowMs();
 uint64_t getTimeNowUs();
 uint64_t getTimeNowNs();
+void startCaptureStatistics();
+uint64_t getCaptureTimeNs();
 
 #define sz_rfbStatisticsMsg sizeof(rfbStatisticsMsg)
+
+
 
 #endif //LIBVNCSERVER_RFBSTATISTICS_H

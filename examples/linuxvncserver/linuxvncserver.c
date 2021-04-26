@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <signal.h>
+#include <h264/display.h>
 #include "rfb/rfb.h"
 #include "rfb/keysym.h"
 #include "rfb/rfbregion.h"
@@ -60,7 +61,9 @@ int main(int argc,char** argv)
 //        goto error;
 //    }
 
-    char* inputFrameBuffer = calloc(1, 1920*1080*4);
+//    char* inputFrameBuffer = calloc(1, 1920*1080*4);
+
+    char* inputFrameBuffer = calloc(1, 1920*1080*4); //mapFramebufferToMemory();
 
     if(initMouse() == FALSE) {
         fprintf(stderr, "Couldn't not init mouse.\n");
@@ -73,7 +76,8 @@ int main(int argc,char** argv)
     printf("initialized!\n");
     while(rfbIsActive(rfbScreen) && !done) {
         setMousePosition(rfbScreen->cursorX, rfbScreen->cursorY);
-        rfbProcessEvents(rfbScreen, 16666);
+        rfbScreen->deferUpdateTime = 0;
+        rfbProcessEvents(rfbScreen, 100);
     }
 
 error:
