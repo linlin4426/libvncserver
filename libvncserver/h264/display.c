@@ -9,8 +9,6 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include <stdint.h>
-#include <rpicopy.h>
-#include <rpimemmgr.h>
 #include "display.h"
 #include "X11/XWDFile.h"
 #define _XOPEN_SOURCE 700
@@ -137,6 +135,7 @@ void unmapFramebuffer(fbp_t fbp) {
   close(fbfd);
 }
 
+/*
 static struct rpimemmgr st;
 static uint32_t width = 0;
 static uint32_t height = 0;
@@ -182,3 +181,4 @@ void destroyDmaCopy() {
     rpicopy_finalize();
 //    rpimemmgr_finalize(&st);
 }
+ */

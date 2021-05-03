@@ -1,12 +1,10 @@
 #include <fcntl.h>
-#include <rpimemmgr.h>
 #include "mmalh264_encoder.h"
 #include "rfb/rfb.h"
 #include "interface/vcos/vcos_semaphore.h"
 #include "interface/mmal/mmal.h"
 #include "interface/mmal/mmal_types.h"
 #include <interface/mmal/vc/mmal_vc_shm.h>
-#include <rpicopy.h>
 #include <bcm_host.h>
 #include "interface/mmal/util/mmal_util.h"
 #include "interface/mmal/util/mmal_default_components.h"
@@ -16,6 +14,9 @@
 //#include "timers.h"
 #include "display.h"
 #include "interface/vmcs_host/vc_dispmanx.h"
+#include <xf86drm.h>
+#include <xf86drmMode.h>
+#include "linux/dma-buf.h"
 
 #define CHECK_STATUS(status, msg) if (status != MMAL_SUCCESS) { fprintf(stderr, msg"\n"); goto error; }
 
@@ -133,6 +134,74 @@ void h264_encoder_cleanup() {
     vcos_semaphore_delete(&context.semaphore);
 }
 
+typedef struct MMAL_PORT_PRIVATE_T
+{
+    /** Pointer to the private data of the core */
+    struct MMAL_PORT_PRIVATE_CORE_T *core;
+    /** Pointer to the private data of the module in use */
+    struct MMAL_PORT_MODULE_T *module;
+    /** Pointer to the private data used by clock ports */
+    struct MMAL_PORT_CLOCK_T *clock;
+
+    MMAL_STATUS_T (*pf_set_format)(MMAL_PORT_T *port);
+    MMAL_STATUS_T (*pf_enable)(MMAL_PORT_T *port, MMAL_PORT_BH_CB_T);
+    MMAL_STATUS_T (*pf_disable)(MMAL_PORT_T *port);
+    MMAL_STATUS_T (*pf_send)(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *);
+    MMAL_STATUS_T (*pf_flush)(MMAL_PORT_T *port);
+    MMAL_STATUS_T (*pf_parameter_set)(MMAL_PORT_T *port, const MMAL_PARAMETER_HEADER_T *param);
+    MMAL_STATUS_T (*pf_parameter_get)(MMAL_PORT_T *port, MMAL_PARAMETER_HEADER_T *param);
+    MMAL_STATUS_T (*pf_connect)(MMAL_PORT_T *port, MMAL_PORT_T *other_port);
+
+    uint8_t *(*pf_payload_alloc)(MMAL_PORT_T *port, uint32_t payload_size);
+    void     (*pf_payload_free)(MMAL_PORT_T *port, uint8_t *payload);
+
+} MMAL_PORT_PRIVATE_T;
+
+uint8_t *custom_dmabuf_allocator(MMAL_PORT_T *port, uint32_t payload_size) {
+    int dma_buf_fd = -1;
+    uint32_t fb_id = 0xcf;
+
+    char *card = "/dev/dri/card0";
+    const int drmfd = open(card, O_RDONLY);
+    if (drmfd < 0) {
+        fprintf(stderr, "Cannot open card\n");
+        goto error;
+    }
+    drmModeFBPtr fb = drmModeGetFB(drmfd, fb_id);
+    if (!fb) {
+        fprintf(stderr, "Cannot open fb %#x\n", fb_id);
+        goto error;
+    }
+
+    printf("fb_id=%#x width=%u height=%u pitch=%u bpp=%u depth=%u handle=%#x\n",
+           fb_id, fb->width, fb->height, fb->pitch, fb->bpp, fb->depth, fb->handle);
+
+    const int ret = drmPrimeHandleToFD(drmfd, fb->handle, 0, &dma_buf_fd);
+    printf("drmPrimeHandleToFD = %d, fd = %d\n", ret, dma_buf_fd);
+
+    if(vcsm_init() != 0) {
+        printf("Could not init vcsm\n");
+        goto error;
+    }
+
+    unsigned int vcsm_handle = vcsm_import_dmabuf(dma_buf_fd, "/dev/dri/card0");
+    printf("vcsm_handle = %d\n", vcsm_handle);
+
+    //https://github.com/6by9/drm_mmal/blob/master/drm_mmal.c
+    //assign this to pool header data?
+    uint8_t *buffer = vcsm_vc_hdl_from_hdl(vcsm_handle);
+    return buffer;
+error:
+    vcsm_free(vcsm_handle);
+//    vcsm_exit();
+    if (dma_buf_fd >= 0)
+        close(dma_buf_fd);
+    if (fb)
+        drmModeFreeFB(fb);
+    close(drmfd);
+    return 0;
+}
+
 int mmalh264_encoder_init(int frame_width, int frame_height) {
     MMAL_STATUS_T status = MMAL_SUCCESS;
     MMAL_PORT_T *encoder_output = NULL;
@@ -152,8 +221,8 @@ int mmalh264_encoder_init(int frame_width, int frame_height) {
     /* Set format of video decoder input port */
     format_in = encoder->input[0]->format;
     format_in->type = MMAL_ES_TYPE_VIDEO;
-//    format_in->encoding = MMAL_ENCODING_BGRA;
     format_in->encoding = MMAL_ENCODING_RGB16;
+    //format_in->encoding = MMAL_ENCODING_BGRA;
     //format_in->encoding = MMAL_ENCODING_RGBA;
     format_in->es->video.width = frame_width;
     format_in->es->video.height = frame_height;
@@ -187,7 +256,11 @@ int mmalh264_encoder_init(int frame_width, int frame_height) {
     encoder_input = encoder->input[0];
 
     //configure zero copy mode on input
-//    mmal_port_parameter_set_boolean(encoder_input, MMAL_PARAMETER_ZERO_COPY, 1);
+    mmal_port_parameter_set_boolean(encoder_input, MMAL_PARAMETER_ZERO_COPY, 1);
+
+    //additional parameters
+    mmal_port_parameter_set_boolean(encoder_output, MMAL_PARAMETER_MINIMISE_FRAGMENTATION, 1);
+//    mmal_port_parameter_set_boolean(encoder_output, MMAL_PARAMETER_VIDEO_ENCODE_H264_DISABLE_CABAC, 1);
 //    mmal_port_parameter_set_boolean(encoder_input, MMAL_PARAMETER_VIDEO_IMMUTABLE_INPUT, 1);
 
     //configure h264 encoding
@@ -260,10 +333,11 @@ int mmalh264_encoder_init(int frame_width, int frame_height) {
     encoder->output[0]->buffer_size = encoder->output[0]->buffer_size_recommended * 5;
     mmal_port_enable(encoder->control, default_control_callback);
 
-//    pool_in = mmal_port_pool_create(encoder->input[0], encoder->input[0]->buffer_num, encoder->input[0]->buffer_size);
+    encoder->input[0]->priv->pf_payload_alloc = custom_dmabuf_allocator;
+    pool_in = mmal_port_pool_create(encoder->input[0], encoder->input[0]->buffer_num, encoder->input[0]->buffer_size);
 
-    pool_in = mmal_pool_create(encoder->input[0]->buffer_num,
-                               encoder->input[0]->buffer_size);
+//    pool_in = mmal_pool_create(encoder->input[0]->buffer_num,
+//                               encoder->input[0]->buffer_size);
     pool_out = mmal_pool_create(encoder->output[0]->buffer_num,
                                 encoder->output[0]->buffer_size);
 
@@ -298,30 +372,8 @@ int mmalh264_encoder_init(int frame_width, int frame_height) {
     return status == MMAL_SUCCESS ? 0 : -1;
 }
 
-static uint8_t initialized = 0;
-
-static VC_RECT_T dispmanx_rect;
-static DISPMANX_DISPLAY_HANDLE_T dispmanx_display;
-static DISPMANX_RESOURCE_HANDLE_T dispmanx_resource;
-
-void initDispManx(int width, int height) {
-    bcm_host_init();
-    uint32_t native_image_handle;
-    dispmanx_display = vc_dispmanx_display_open(0);
-    DISPMANX_MODEINFO_T modeinfo;
-    vc_dispmanx_display_get_info(dispmanx_display, &modeinfo);
-    dispmanx_resource = vc_dispmanx_resource_create(
-        VC_IMAGE_ARGB8888, width, height, &native_image_handle);
-    vc_dispmanx_rect_set(&dispmanx_rect, 0, 0, width, height);
-}
-
-int mmalh264_encoder_encode(u_char *frame_buffer, int width, int height, onFrameCb on_frame_cb) {
+int mmalh264_encoder_encode(rfbClientPtr client, int width, int height, onFrameCb on_frame_cb) {
     MMAL_STATUS_T status = MMAL_SUCCESS;
-
-    //int64_t desired_frame_time = 33000000; //30fps
-    int64_t desired_frame_time = 66000000; //15fps
-    //int64_t desired_frame_time = 66000000*2; //7.5fps
-    //mpv --no-cache --untimed --no-demuxer-thread --vd-lavc-threads=1 http://192.168.0.202:7001/video.h264
 
     MMAL_BUFFER_HEADER_T *bufferHeader;
 
@@ -330,13 +382,13 @@ int mmalh264_encoder_encode(u_char *frame_buffer, int width, int height, onFrame
 
     /* Send data to decode to the input port of the video encoder */
     if ((bufferHeader = mmal_queue_get(pool_in->queue)) != NULL) {
-
-        memcpy(bufferHeader->data, frame_buffer, width*height*2);
-        bufferHeader->length = width * height * 2;
+        bufferHeader->length = width * height * 3;
         bufferHeader->offset = 0;
         bufferHeader->pts = bufferHeader->dts = MMAL_TIME_UNKNOWN;
         bufferHeader->flags = MMAL_BUFFER_HEADER_FLAG_EOS;
 
+
+        client->rfbStatistics.encode_ts_start_ms = (uint32_t)(getCaptureTimeNs()/1000000);
         status = mmal_port_send_buffer(encoder->input[0], bufferHeader);
         CHECK_STATUS(status, "failed to send bufferHeader\n");
         //if(!encode_timer) encode_timer = start_timer("encode");
@@ -355,7 +407,6 @@ int mmalh264_encoder_encode(u_char *frame_buffer, int width, int height, onFrame
 //      printf("MMAL_BUFFER_HEADER_FLAG_FRAME_END: %d\n",!!(bufferHeader->flags & MMAL_BUFFER_HEADER_FLAG_FRAME_END));
 //      printf("MMAL_BUFFER_HEADER_FLAG_FRAME: %d\n",!!(bufferHeader->flags & MMAL_BUFFER_HEADER_FLAG_FRAME));
 //      printf("MMAL_BUFFER_HEADER_FLAG_KEYFRAME: %d\n\n",!!(bufferHeader->flags & MMAL_BUFFER_HEADER_FLAG_KEYFRAME));
-
         on_frame_cb(bufferHeader);
         mmal_buffer_header_release(bufferHeader);
     }

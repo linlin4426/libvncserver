@@ -7,12 +7,12 @@
 #include "mouse.h"
 
 static int done = 0;
-//static int width = 1366;
-//static int height = 768;
+//static int width = 1280;
+//static int height = 720;
 static int width = 1920;
 static int height = 1080;
-//static int width = 1920;
-//static int height = 540;
+//static int width = 720;
+//static int height = 480;
 
 void signal_handler(int n) {
     if(n == SIGINT) done = 1;

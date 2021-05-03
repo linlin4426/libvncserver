@@ -648,10 +648,11 @@ target_link_libraries(vncserver
                       /opt/vc/lib/libbcm_host.so
                       #rpi memcopy dependencies
                       /opt/vc/lib/libvcsm.so
-                      /usr/lib/librpicopy.so
-                      /usr/lib/libvc4regmap.so
-                      /usr/local/lib/librpimemmgr.so
-                      /usr/lib/libmailbox.so
+#                      /usr/lib/librpicopy.so
+#                      /usr/lib/libvc4regmap.so
+#                      /usr/local/lib/librpimemmgr.so
+#                      /usr/lib/libmailbox.so
+                      drm
 )
 
 SET_TARGET_PROPERTIES(vncclient vncserver
@@ -759,10 +760,10 @@ target_link_libraries(linuxvncserver
         /opt/vc/lib/libbcm_host.so
         #rpi memcopy dependencies
         /opt/vc/lib/libvcsm.so
-        /usr/lib/librpicopy.so
-        /usr/lib/libvc4regmap.so
-        /usr/local/lib/librpimemmgr.so
-        /usr/lib/libmailbox.so
+#        /usr/lib/librpicopy.so
+#        /usr/lib/libvc4regmap.so
+#        /usr/local/lib/librpimemmgr.so
+#        /usr/lib/libmailbox.so
         pthread
         ${CMAKE_THREAD_LIBS_INIT}
         ${CARBON_LIBRARY}
