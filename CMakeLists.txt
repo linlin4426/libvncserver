@@ -515,7 +515,9 @@ endif(PNG_FOUND)
 
 if(X264_FOUND)
   add_definitions(-DLIBVNCSERVER_HAVE_LIBX264)
-  include_directories(${X264_INCLUDE_DIR})
+  include_directories(
+          {X264_INCLUDE_DIR}
+  )
   set(X264_C
           ${LIBVNCSERVER_DIR}/h264/common.c
           ${LIBVNCSERVER_DIR}/h264/x264.c
@@ -533,12 +535,18 @@ endif(OPENH264_FOUND)
 
 if(MMALH264_FOUND)
   add_definitions(-DLIBVNCSERVER_HAVE_MMALOPENH264)
-  include_directories(${MMALH264_INCLUDE_DIR})
+
+  include_directories(
+          /usr/include
+          ${MMALH264_INCLUDE_DIR}
+          /usr/include/libdrm
+  )
   set(MMALH264_C
           ${LIBVNCSERVER_DIR}/h264/common.c
           ${LIBVNCSERVER_DIR}/h264/mmalh264.c
           ${LIBVNCSERVER_DIR}/h264/mmalh264_encoder.c
           ${LIBVNCSERVER_DIR}/h264/display.c
+          ${LIBVNCSERVER_DIR}/h264/kmsgrab.c
   )
 endif(MMALH264_FOUND)
 
@@ -646,12 +654,9 @@ target_link_libraries(vncserver
                       /opt/vc/lib/libvchiq_arm.so
                       /opt/vc/lib/libvcos.so
                       /opt/vc/lib/libbcm_host.so
-                      #rpi memcopy dependencies
                       /opt/vc/lib/libvcsm.so
-#                      /usr/lib/librpicopy.so
-#                      /usr/lib/libvc4regmap.so
-#                      /usr/local/lib/librpimemmgr.so
-#                      /usr/lib/libmailbox.so
+                      EGL
+                      GLESv2
                       drm
 )
 

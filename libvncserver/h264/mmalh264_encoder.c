@@ -17,6 +17,7 @@
 #include <xf86drm.h>
 #include <xf86drmMode.h>
 #include "linux/dma-buf.h"
+#include "kmsgrab.h"
 
 #define CHECK_STATUS(status, msg) if (status != MMAL_SUCCESS) { fprintf(stderr, msg"\n"); goto error; }
 
@@ -34,6 +35,8 @@ static MMAL_COMPONENT_T *encoder = 0;
 static MMAL_POOL_T *pool_in = 0;
 static MMAL_POOL_T *pool_out = 0;
 static unsigned int count;
+
+static KMSGrabContext *kmsGrabContext;
 
 void default_control_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 {
@@ -158,33 +161,35 @@ typedef struct MMAL_PORT_PRIVATE_T
 } MMAL_PORT_PRIVATE_T;
 
 uint8_t *custom_dmabuf_allocator(MMAL_PORT_T *port, uint32_t payload_size) {
-    int dma_buf_fd = -1;
-    uint32_t fb_id = 0xcf;
+//    int dma_buf_fd = -1;
+//    uint32_t fb_id = 0xcf;
+//
+//    char *card = "/dev/dri/card0";
+//    const int drmfd = open(card, O_RDONLY);
+//    if (drmfd < 0) {
+//        fprintf(stderr, "Cannot open card\n");
+//        goto error;
+//    }
+//    drmModeFBPtr fb = drmModeGetFB(drmfd, fb_id);
+//    if (!fb) {
+//        fprintf(stderr, "Cannot open fb %#x\n", fb_id);
+//        goto error;
+//    }
+//
+//    printf("fb_id=%#x width=%u height=%u pitch=%u bpp=%u depth=%u handle=%#x\n",
+//           fb_id, fb->width, fb->height, fb->pitch, fb->bpp, fb->depth, fb->handle);
+//
+//    const int ret = drmPrimeHandleToFD(drmfd, fb->handle, 0, &dma_buf_fd);
+//    printf("drmPrimeHandleToFD = %d, fd = %d\n", ret, dma_buf_fd);
 
-    char *card = "/dev/dri/card0";
-    const int drmfd = open(card, O_RDONLY);
-    if (drmfd < 0) {
-        fprintf(stderr, "Cannot open card\n");
-        goto error;
-    }
-    drmModeFBPtr fb = drmModeGetFB(drmfd, fb_id);
-    if (!fb) {
-        fprintf(stderr, "Cannot open fb %#x\n", fb_id);
-        goto error;
-    }
-
-    printf("fb_id=%#x width=%u height=%u pitch=%u bpp=%u depth=%u handle=%#x\n",
-           fb_id, fb->width, fb->height, fb->pitch, fb->bpp, fb->depth, fb->handle);
-
-    const int ret = drmPrimeHandleToFD(drmfd, fb->handle, 0, &dma_buf_fd);
-    printf("drmPrimeHandleToFD = %d, fd = %d\n", ret, dma_buf_fd);
+    kmsGrabContext = initKmsGrab();
 
     if(vcsm_init() != 0) {
         printf("Could not init vcsm\n");
         goto error;
     }
 
-    unsigned int vcsm_handle = vcsm_import_dmabuf(dma_buf_fd, "/dev/dri/card0");
+    unsigned int vcsm_handle = vcsm_import_dmabuf(kmsGrabContext->dmaBufOut.fd, "/dev/dri/card0");
     printf("vcsm_handle = %d\n", vcsm_handle);
 
     //https://github.com/6by9/drm_mmal/blob/master/drm_mmal.c
@@ -193,12 +198,6 @@ uint8_t *custom_dmabuf_allocator(MMAL_PORT_T *port, uint32_t payload_size) {
     return buffer;
 error:
     vcsm_free(vcsm_handle);
-//    vcsm_exit();
-    if (dma_buf_fd >= 0)
-        close(dma_buf_fd);
-    if (fb)
-        drmModeFreeFB(fb);
-    close(drmfd);
     return 0;
 }
 
@@ -221,9 +220,9 @@ int mmalh264_encoder_init(int frame_width, int frame_height) {
     /* Set format of video decoder input port */
     format_in = encoder->input[0]->format;
     format_in->type = MMAL_ES_TYPE_VIDEO;
-    format_in->encoding = MMAL_ENCODING_RGB16;
+//    format_in->encoding = MMAL_ENCODING_RGB16;
     //format_in->encoding = MMAL_ENCODING_BGRA;
-    //format_in->encoding = MMAL_ENCODING_RGBA;
+    format_in->encoding = MMAL_ENCODING_RGBA;
     format_in->es->video.width = frame_width;
     format_in->es->video.height = frame_height;
     format_in->es->video.frame_rate.num = 30;
@@ -382,7 +381,8 @@ int mmalh264_encoder_encode(rfbClientPtr client, int width, int height, onFrameC
 
     /* Send data to decode to the input port of the video encoder */
     if ((bufferHeader = mmal_queue_get(pool_in->queue)) != NULL) {
-        bufferHeader->length = width * height * 3;
+        runKmsGrab(kmsGrabContext);
+        bufferHeader->length = width * height * 4;
         bufferHeader->offset = 0;
         bufferHeader->pts = bufferHeader->dts = MMAL_TIME_UNKNOWN;
         bufferHeader->flags = MMAL_BUFFER_HEADER_FLAG_EOS;
