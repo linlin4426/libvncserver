@@ -37,10 +37,14 @@ static void emit(int fd, int type, int code, int val) {
     ie.code = code;
     ie.value = val;
     /* timestamp values below are ignored */
+//    gettimeofday(&ie.time, NULL);
     ie.time.tv_sec = 0;
     ie.time.tv_usec = 0;
 
     size_t size = write(fd, &ie, sizeof(ie));
+    if(size < 0) {
+        fprintf(stderr, "error: write\n");
+    }
 }
 
 int initMouse() {
@@ -70,6 +74,7 @@ int initMouse() {
 
     ioctl(fid, UI_SET_EVBIT, EV_REL);
     ioctl(fid, UI_SET_RELBIT, REL_WHEEL);
+    ioctl(fid, UI_SET_RELBIT, REL_HWHEEL);
 
     memset(&usetup, 0, sizeof(usetup));
     usetup.id.bustype = BUS_USB;
@@ -117,9 +122,9 @@ void setButton(int32_t button, int down) {
     } else if(button & 4) {
         emit(fid, EV_KEY, BTN_RIGHT, down ? 1 : 0);
     } else if(button & 8) {
-        emit(fid, EV_REL, REL_HWHEEL, 1);
+        emit(fid, EV_REL, REL_WHEEL, +1);
     } else if(button & 16) {
-        emit(fid, EV_REL, REL_HWHEEL, +1);
+        emit(fid, EV_REL, REL_WHEEL, -1);
     }
 
     emit(fid, EV_SYN, SYN_REPORT, 0);
