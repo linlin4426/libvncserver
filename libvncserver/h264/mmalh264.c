@@ -47,7 +47,7 @@ extern void handle_frame(MMAL_BUFFER_HEADER_T *bufferHeader) {
         }
         openFrame = false;
 
-        fprintf(stdout, "%d (%d bytes), total=%d, %dms\n",frameNum++, bytesPacket, bytesSent, client->rfbStatistics.encode_ts_end_ms - client->rfbStatistics.encode_ts_start_ms);
+//        fprintf(stdout, "%d (%d bytes), total=%d, %dms\n",frameNum++, bytesPacket, bytesSent, client->rfbStatistics.encode_ts_end_ms - client->rfbStatistics.encode_ts_start_ms);
         client->rfbStatistics.last_frame++;
         client->rfbStatistics.tx_ts_end_ms = (uint32_t)(getCaptureTimeNs()/1000000);
         rfbSendStatistics(client);

@@ -605,6 +605,7 @@ typedef struct _rfbClientRec {
     rfbBool enableKeyboardLedState;   /**< client supports KeyboardState encoding */
     rfbBool enableLastRectEncoding;   /**< client supports LastRect encoding */
     rfbBool enableCursorShapeUpdates; /**< client supports cursor shape updates */
+    rfbBool enableQemuExtendedKeyEvent; /**< client supports qemu extended key events */
     rfbBool enableCursorPosUpdates;   /**< client supports cursor position updates */
     rfbBool useRichCursorEncoding;    /**< rfbEncodingRichCursor is preferred */
     rfbBool cursorWasChanged;         /**< cursor shape update should be sent */

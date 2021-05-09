@@ -3,6 +3,7 @@
 
 int initMouse();
 int setMousePosition(int x, int y);
+void setButton(int32_t buttonMask, int down);
 int destroyMouse();
 
 #endif //LIBVNCSERVER_MOUSE_H

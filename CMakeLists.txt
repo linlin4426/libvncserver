@@ -496,8 +496,7 @@ else()
   )
   set(LIBVNCCLIENT_SOURCES
     ${LIBVNCCLIENT_SOURCES}
-    ${COMMON_DIR}/minilzo.c
-          examples/linuxvncserver/linuxvncserver.c examples/linuxvncserver/mouse.c)
+    ${COMMON_DIR}/minilzo.c)
 endif()
 
 if(JPEG_FOUND)
@@ -535,7 +534,6 @@ endif(OPENH264_FOUND)
 
 if(MMALH264_FOUND)
   add_definitions(-DLIBVNCSERVER_HAVE_MMALOPENH264)
-
   include_directories(
           /usr/include
           ${MMALH264_INCLUDE_DIR}
@@ -546,7 +544,6 @@ if(MMALH264_FOUND)
           ${LIBVNCSERVER_DIR}/h264/mmalh264.c
           ${LIBVNCSERVER_DIR}/h264/mmalh264_encoder.c
           ${LIBVNCSERVER_DIR}/h264/display.c
-          ${LIBVNCSERVER_DIR}/h264/kmsgrab.c
   )
 endif(MMALH264_FOUND)
 
@@ -752,6 +749,7 @@ add_executable(linuxvncserver
 #        ${LIBVNCSRVEXAMPLE_DIR}/linuxvncserver/display.c
         ${LIBVNCSRVEXAMPLE_DIR}/linuxvncserver/keyboard.c
         ${LIBVNCSRVEXAMPLE_DIR}/linuxvncserver/mouse.c
+        ${LIBVNCSRVEXAMPLE_DIR}/linuxvncserver/rfbQmuKeyboardEventProtocolExtension.c
         )
 add_library(libevdev SHARED IMPORTED)
 set_target_properties(libevdev PROPERTIES IMPORTED_LOCATION /usr/local/lib/libevdev.so)
@@ -765,10 +763,6 @@ target_link_libraries(linuxvncserver
         /opt/vc/lib/libbcm_host.so
         #rpi memcopy dependencies
         /opt/vc/lib/libvcsm.so
-#        /usr/lib/librpicopy.so
-#        /usr/lib/libvc4regmap.so
-#        /usr/local/lib/librpimemmgr.so
-#        /usr/lib/libmailbox.so
         pthread
         ${CMAKE_THREAD_LIBS_INIT}
         ${CARBON_LIBRARY}

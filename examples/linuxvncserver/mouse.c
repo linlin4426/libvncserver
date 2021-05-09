@@ -30,7 +30,7 @@
 
 static int fid = -1;
 
-void emit(int fd, int type, int code, int val) {
+static void emit(int fd, int type, int code, int val) {
     struct input_event ie;
 
     ie.type = type;
@@ -55,21 +55,27 @@ int initMouse() {
         goto error;
     }
 
-    /* enable mouse button left and relative events */
+    /* enable mouse button left, middle, right and wheel events */
     ioctl(fid, UI_SET_EVBIT, EV_KEY);
+    ioctl(fid, UI_SET_EVBIT, EV_SYN);
+    ioctl(fid, UI_SET_EVBIT, EV_MSC);
+
     ioctl(fid, UI_SET_KEYBIT, BTN_LEFT);
-    ioctl(fid, UI_SET_KEYBIT, BTN_MIDDLE);
     ioctl(fid, UI_SET_KEYBIT, BTN_RIGHT);
+    ioctl(fid, UI_SET_KEYBIT, BTN_MIDDLE);
 
     ioctl(fid, UI_SET_EVBIT, EV_ABS);
     ioctl(fid, UI_SET_ABSBIT, ABS_X);
     ioctl(fid, UI_SET_ABSBIT, ABS_Y);
 
+    ioctl(fid, UI_SET_EVBIT, EV_REL);
+    ioctl(fid, UI_SET_RELBIT, REL_WHEEL);
+
     memset(&usetup, 0, sizeof(usetup));
     usetup.id.bustype = BUS_USB;
     usetup.id.vendor = 0x1234; /* sample vendor */
     usetup.id.product = 0x5678; /* sample product */
-    strcpy(usetup.name, "Example device");
+    strcpy(usetup.name, "Virtual mouse");
 
     ioctl(fid, UI_DEV_SETUP, &usetup);
 
@@ -93,15 +99,6 @@ int initMouse() {
      * to send. This pause is only needed in our example code!
      */
     sleep(1);
-
-//    /* Move the mouse diagonally, 5 units per axis */
-//    while ()
-//    for (int i = 0; i < 50; i++) {
-//        emit(fid, EV_REL, REL_X, 5);
-//        emit(fid, EV_REL, REL_Y, 5);
-//        emit(fid, EV_SYN, SYN_REPORT, 0);
-//        usleep(15000);
-//    }
 error:
     return result;
 }
@@ -109,6 +106,22 @@ error:
 int setMousePosition(int x, int y) {
     emit(fid, EV_ABS, ABS_X, x);
     emit(fid, EV_ABS, ABS_Y, y);
+    emit(fid, EV_SYN, SYN_REPORT, 0);
+}
+
+void setButton(int32_t button, int down) {
+    if(button & 1) {
+        emit(fid, EV_KEY, BTN_LEFT, down ? 1 : 0);
+    } else if(button & 2) {
+        emit(fid, EV_KEY, BTN_MIDDLE, down ? 1 : 0);
+    } else if(button & 4) {
+        emit(fid, EV_KEY, BTN_RIGHT, down ? 1 : 0);
+    } else if(button & 8) {
+        emit(fid, EV_REL, REL_HWHEEL, 1);
+    } else if(button & 16) {
+        emit(fid, EV_REL, REL_HWHEEL, +1);
+    }
+
     emit(fid, EV_SYN, SYN_REPORT, 0);
 }
 

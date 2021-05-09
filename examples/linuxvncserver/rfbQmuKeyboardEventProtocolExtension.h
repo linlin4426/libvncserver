@@ -1,0 +1,9 @@
+#ifndef LIBVNCSERVER_RFBQMUKEYBOARDEVENTPROTOCOLEXTENSION_H
+#define LIBVNCSERVER_RFBQMUKEYBOARDEVENTPROTOCOLEXTENSION_H
+
+#include <rfb/rfb.h>
+
+rfbProtocolExtension *initQemuKeyboardEventExtenstion();
+void destroyQemuKeyboardEventExtension();
+
+#endif //LIBVNCSERVER_RFBQMUKEYBOARDEVENTPROTOCOLEXTENSION_H
