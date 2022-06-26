@@ -921,8 +921,8 @@ rfbScreenInfoPtr rfbGetScreen(int* argc,char** argv,
    screen->autoPort=FALSE;
    screen->clientHead=NULL;
    screen->pointerClient=NULL;
-   screen->port=5900;
-   screen->ipv6port=5900;
+   screen->port=5901;
+   screen->ipv6port=5901;
    screen->socketState=RFB_SOCKET_INIT;
 
    screen->inetdInitDone = FALSE;
@@ -1136,6 +1136,10 @@ void rfbScreenCleanup(rfbScreenInfoPtr screen)
   rfbZlibCleanup(screen);
 #ifdef LIBVNCSERVER_HAVE_LIBJPEG
   rfbTightCleanup(screen);
+#endif
+
+#ifdef LIBVNCSERVER_HAVE_LIBH264
+  rfbH264Cleanup(screen);
 #endif
 
   /* free all 'scaled' versions of this screen */

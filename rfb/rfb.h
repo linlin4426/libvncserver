@@ -560,7 +560,8 @@ typedef struct _rfbClientRec {
      * means 8K minimum.
      */
 
-#define UPDATE_BUF_SIZE 30000
+//#define UPDATE_BUF_SIZE 30000
+#define UPDATE_BUF_SIZE 5000000
 
     char updateBuf[UPDATE_BUF_SIZE];
     int ublen;
@@ -604,6 +605,7 @@ typedef struct _rfbClientRec {
     rfbBool enableKeyboardLedState;   /**< client supports KeyboardState encoding */
     rfbBool enableLastRectEncoding;   /**< client supports LastRect encoding */
     rfbBool enableCursorShapeUpdates; /**< client supports cursor shape updates */
+    rfbBool enableQemuExtendedKeyEvent; /**< client supports qemu extended key events */
     rfbBool enableCursorPosUpdates;   /**< client supports cursor position updates */
     rfbBool useRichCursorEncoding;    /**< rfbEncodingRichCursor is preferred */
     rfbBool cursorWasChanged;         /**< cursor shape update should be sent */
@@ -685,6 +687,11 @@ typedef struct _rfbClientRec {
     rfbBool useExtDesktopSize;
     int requestedDesktopSizeChange;
     int lastDesktopSizeChangeError;
+
+#ifdef LIBVNCSERVER_STATISTICS_ENABLED
+    rfbStatistics rfbStatistics;
+#endif
+
 } rfbClientRec, *rfbClientPtr;
 
 /**
@@ -800,6 +807,7 @@ extern rfbBool rfbProcessFileTransfer(rfbClientPtr cl, uint8_t contentType, uint
 
 void rfbGotXCutText(rfbScreenInfoPtr rfbScreen, char *str, int len);
 
+
 /* translate.c */
 
 extern rfbBool rfbEconomicTranslate;
@@ -892,6 +900,18 @@ extern rfbBool rfbSendCompressedDataTight(rfbClientPtr cl, char *buf, int compre
 extern rfbBool rfbSendRectEncodingTightPng(rfbClientPtr cl, int x,int y,int w,int h);
 #endif
 
+#ifdef LIBVNCSERVER_HAVE_LIBX264
+extern rfbBool rfbSendFrameEncodingX264(rfbClientPtr cl);
+#endif
+
+#ifdef LIBVNCSERVER_HAVE_LIBOPENH264
+extern rfbBool rfbSendFrameEncodingOpenH264(rfbClientPtr cl);
+#endif
+
+#ifdef LIBVNCSERVER_HAVE_LIBMMALH264
+extern rfbBool rfbSendFrameEncodingMmalH264(rfbClientPtr cl);
+#endif
+
 #endif
 #endif
 
@@ -930,6 +950,9 @@ extern void rfbDefaultPtrAddEvent(int buttonMask,int x,int y,rfbClientPtr cl);
 #ifdef LIBVNCSERVER_HAVE_LIBZ
 extern rfbBool rfbSendRectEncodingZRLE(rfbClientPtr cl, int x, int y, int w,int h);
 #endif
+
+/* statistics/rfbStatistics.c */
+extern rfbBool rfbSendStatistics(rfbClientPtr cl);
 
 /* stats.c */
 

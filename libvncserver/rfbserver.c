@@ -1024,6 +1024,12 @@ rfbSendSupportedEncodings(rfbClientPtr cl)
 #ifdef LIBVNCSERVER_HAVE_LIBPNG
 	rfbEncodingTightPng,
 #endif
+#ifdef LIBVNCSERVER_HAVE_LIBX264
+    rfbEncodingX264,
+#endif
+#ifdef LIBVNCSERVER_HAVE_LIBOPENH264
+    rfbEncodingOpenH264,
+#endif
 	rfbEncodingUltra,
 	rfbEncodingUltraZip,
 	rfbEncodingXCursor,
@@ -2170,6 +2176,12 @@ rfbProcessClientNormalMessage(rfbClientPtr cl)
 #ifdef LIBVNCSERVER_HAVE_LIBPNG
 	    case rfbEncodingTightPng:
 #endif
+#ifdef LIBVNCSERVER_HAVE_LIBX264
+      case rfbEncodingX264:
+#endif
+#ifdef LIBVNCSERVER_HAVE_LIBOPENH264
+      case rfbEncodingOpenH264:
+#endif
             /* The first supported encoding is the 'preferred' encoding */
                 if (cl->preferredEncoding == -1)
                     cl->preferredEncoding = enc;
@@ -2235,21 +2247,21 @@ rfbProcessClientNormalMessage(rfbClientPtr cl)
                           "%s\n", cl->host);
                   cl->enableKeyboardLedState = TRUE;
                 }
-                break;           
+                break;
             case rfbEncodingSupportedMessages:
                 if (!cl->enableSupportedMessages) {
                   rfbLog("Enabling SupportedMessages protocol extension for client "
                           "%s\n", cl->host);
                   cl->enableSupportedMessages = TRUE;
                 }
-                break;           
+                break;
             case rfbEncodingSupportedEncodings:
                 if (!cl->enableSupportedEncodings) {
                   rfbLog("Enabling SupportedEncodings protocol extension for client "
                           "%s\n", cl->host);
                   cl->enableSupportedEncodings = TRUE;
                 }
-                break;           
+                break;
             case rfbEncodingServerIdentity:
                 if (!cl->enableServerIdentity) {
                   rfbLog("Enabling ServerIdentity protocol extension for client "
@@ -2347,6 +2359,7 @@ rfbProcessClientNormalMessage(rfbClientPtr cl)
 			}
 		}
             }
+
         }
 
 
@@ -2818,6 +2831,164 @@ rfbProcessClientNormalMessage(rfbClientPtr cl)
     }
 }
 
+typedef struct FramebufferAuxiliaryMessages {
+    rfbBool sendCursorShape;
+    rfbBool sendCursorPos;
+    rfbBool sendKeyboardLedState;
+    rfbBool sendSupportedMessages;
+    rfbBool sendSupportedEncodings;
+    rfbBool sendServerIdentity;
+} FramebufferAuxiliaryMessages;
+
+rfbBool
+getFramebufferUpdateAuxiliary(rfbClientPtr cl, FramebufferAuxiliaryMessages *messages) {
+    messages->sendSupportedMessages = FALSE;
+    messages->sendSupportedEncodings = FALSE;
+    messages->sendServerIdentity = FALSE;
+    messages->sendKeyboardLedState = FALSE;
+    messages->sendCursorShape = FALSE;
+    messages->sendCursorPos = FALSE;
+
+    /*
+     * If this client understands cursor shape updates, cursor should be
+     * removed from the framebuffer. Otherwise, make sure it's put up.
+     */
+
+    if (cl->enableCursorShapeUpdates) {
+        if (cl->cursorWasChanged && cl->readyForSetColourMapEntries)
+            messages->sendCursorShape = TRUE;
+    }
+
+    /*
+     * Do we plan to send cursor position update?
+     */
+
+    if (cl->enableCursorPosUpdates && cl->cursorWasMoved)
+        messages->sendCursorPos = TRUE;
+
+    /*
+     * Do we plan to send a keyboard state update?
+     */
+    if ((cl->enableKeyboardLedState) &&
+        (cl->screen->getKeyboardLedStateHook!=NULL))
+    {
+        int x;
+        x=cl->screen->getKeyboardLedStateHook(cl->screen);
+        if (x!=cl->lastKeyboardLedState)
+        {
+            messages->sendKeyboardLedState = TRUE;
+            cl->lastKeyboardLedState=x;
+        }
+    }
+
+    /*
+     * Do we plan to send a rfbEncodingSupportedMessages?
+     */
+    if (cl->enableSupportedMessages)
+    {
+        messages->sendSupportedMessages = TRUE;
+        /* We only send this message ONCE <per setEncodings message received>
+         * (We disable it here)
+         */
+        cl->enableSupportedMessages = FALSE;
+    }
+    /*
+     * Do we plan to send a rfbEncodingSupportedEncodings?
+     */
+    if (cl->enableSupportedEncodings)
+    {
+        messages->sendSupportedEncodings = TRUE;
+        /* We only send this message ONCE <per setEncodings message received>
+         * (We disable it here)
+         */
+        cl->enableSupportedEncodings = FALSE;
+    }
+    /*
+     * Do we plan to send a rfbEncodingServerIdentity?
+     */
+    if (cl->enableServerIdentity)
+    {
+        messages->sendServerIdentity = TRUE;
+        /* We only send this message ONCE <per setEncodings message received>
+         * (We disable it here)
+         */
+        cl->enableServerIdentity = FALSE;
+    }
+
+    return TRUE;
+}
+
+rfbBool
+sendFramebufferUpdateAuxiliary(rfbClientPtr cl, FramebufferAuxiliaryMessages *messages) {
+    LOCK(cl->updateMutex);
+//    if (messages->sendCursorShape) {
+//        cl->cursorWasChanged = FALSE;
+//        if (!rfbSendCursorShape(cl))
+//            goto updateFailed;
+//    }
+
+    if (messages->sendCursorPos) {
+        cl->cursorWasMoved = FALSE;
+        if (!rfbSendCursorPos(cl))
+            goto updateFailed;
+    }
+
+    if (messages->sendKeyboardLedState) {
+        if (!rfbSendKeyboardLedState(cl))
+            goto updateFailed;
+    }
+
+    if (messages->sendSupportedMessages) {
+        if (!rfbSendSupportedMessages(cl))
+            goto updateFailed;
+    }
+    if (messages->sendSupportedEncodings) {
+        if (!rfbSendSupportedEncodings(cl))
+            goto updateFailed;
+    }
+    if (messages->sendServerIdentity) {
+        if (!rfbSendServerIdentity(cl))
+            goto updateFailed;
+    }
+    UNLOCK(cl->updateMutex);
+
+    return TRUE;
+updateFailed:
+    return FALSE;
+}
+
+#if defined(LIBVNCSERVER_HAVE_LIBX264) || defined(LIBVNCSERVER_HAVE_LIBOPENH264) || defined(LIBVNCSERVER_HAVE_LIBMMALH264)
+rfbBool sendFramebufferUpdateH264(rfbClientPtr cl, sraRegionPtr givenUpdateRegion) {
+    FramebufferAuxiliaryMessages messages;
+    rfbBool result = TRUE;
+
+    if(cl->screen->displayHook)
+        cl->screen->displayHook(cl);
+
+    //TODO: resize support.
+
+    if(!getFramebufferUpdateAuxiliary(cl, &messages)) {
+        result = FALSE;
+        goto updateFailed;
+    }
+
+//    if(!rfbSendFrameEncodingX264(cl)) {
+//    if(!rfbSendFrameEncodingOpenH264(cl)) {
+    if(!rfbSendFrameEncodingMmalH264(cl)) {
+        result = FALSE;
+        goto updateFailed;
+    }
+
+    if(!sendFramebufferUpdateAuxiliary(cl, &messages)) {
+        result = FALSE;
+        goto updateFailed;
+    }
+
+updateFailed:
+    if(cl->screen->displayFinishedHook)
+        cl->screen->displayFinishedHook(cl, result);
+}
+#endif
 
 
 /*
@@ -2843,7 +3014,16 @@ rfbSendFramebufferUpdate(rfbClientPtr cl,
     rfbBool sendSupportedEncodings = FALSE;
     rfbBool sendServerIdentity = FALSE;
     rfbBool result = TRUE;
-    
+
+#if defined(LIBVNCSERVER_HAVE_LIBX264) || defined(LIBVNCSERVER_HAVE_LIBOPENH264) || defined(LIBVNCSERVER_HAVE_LIBMMALH264)
+    if(cl->preferredEncoding == rfbEncodingX264) {
+        if(!sendFramebufferUpdateH264(cl, updateRegion)) {
+            return FALSE;
+        }
+        return TRUE;
+    }
+#endif
+
 
     if(cl->screen->displayHook)
       cl->screen->displayHook(cl);
@@ -3186,6 +3366,7 @@ rfbSendFramebufferUpdate(rfbClientPtr cl,
 	fu->nRects = 0xFFFF;
     }
     cl->ublen = sz_rfbFramebufferUpdateMsg;
+
 
    if (sendCursorShape) {
 	cl->cursorWasChanged = FALSE;

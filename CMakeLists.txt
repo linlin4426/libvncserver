@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.4)
 
-project(LibVNCServer VERSION 0.9.13 LANGUAGES C)
+project(LibVNCServer VERSION 0.9.13 LANGUAGES C CXX)
+
 include(CheckFunctionExists)
 include(CheckSymbolExists)
 include(CheckIncludeFile)
@@ -17,6 +18,7 @@ set(FULL_PACKAGE_NAME      "LibVNCServer")
 set(VERSION_SO             "1")
 set(PROJECT_BUGREPORT_PATH "https://github.com/LibVNC/libvncserver/issues")
 set(LIBVNCSERVER_DIR ${CMAKE_CURRENT_SOURCE_DIR}/libvncserver)
+set(LIBVNCSERVERANDROID_DIR ${CMAKE_CURRENT_SOURCE_DIR}/libvncserver/android)
 set(COMMON_DIR ${CMAKE_CURRENT_SOURCE_DIR}/common)
 set(LIBVNCCLIENT_DIR ${CMAKE_CURRENT_SOURCE_DIR}/libvncclient)
 set(LIBVNCSRVEXAMPLE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/examples)
@@ -35,15 +37,32 @@ add_custom_target(
     )
 endif(CMAKE_GENERATOR MATCHES "Unix Makefiles|Ninja")
 
-include_directories(${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/libvncserver ${CMAKE_CURRENT_SOURCE_DIR}/common)
+if (NOT CMAKE_BUILD_TYPE)
+  message(STATUS "No build type selected, default to Release")
+  set(CMAKE_BUILD_TYPE "Release")
+endif()
+
+#set(CMAKE_C_FLAGS "-Wall -Wextra")
+set(CMAKE_C_FLAGS_DEBUG "-g")
+set(CMAKE_C_FLAGS_RELEASE "-O3")
+
+include_directories(
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_CURRENT_BINARY_DIR}
+        ${CMAKE_CURRENT_SOURCE_DIR}/libvncserver
+        ${CMAKE_CURRENT_SOURCE_DIR}/common
+)
 
 # all the build configuration switches
 option(LIBVNCSERVER_INSTALL "Generate installation target" ON)
-option(BUILD_SHARED_LIBS "Build shared libraries" ${UNIX})
+option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
 option(WITH_ZLIB "Search for the zlib compression library to support additional encodings" ON)
 option(WITH_LZO "Search for the LZO compression library to omit internal miniLZO implementation" ON)
 option(WITH_JPEG "Search for the libjpeg compression library to support additional encodings" ON)
 option(WITH_PNG "Search for the PNG compression library to support additional encodings" ON)
+option(WITH_X264 "Search for the X264 compression library to support additional encodings" OFF)
+option(WITH_OPENH264 "Search for the OPENH264 compression library to support additional encodings" ON)
+option(WITH_MMALH264 "Search for the rasperry pi userland libraries to support additional encodings" ON)
 option(WITH_SDL "Search for the Simple Direct Media Layer library to build an example SDL vnc client" ON)
 option(WITH_GTK "Search for the GTK library to build an example GTK vnc client" ON)
 option(WITH_THREADS "Search for a threading library to build with multithreading support" ON)
@@ -117,6 +136,17 @@ if(WITH_PNG)
   find_package(PNG)
 endif(WITH_PNG)
 
+if(WITH_X264)
+  find_package(X264)
+endif(WITH_X264)
+
+if(WITH_OPENH264)
+  find_package(OPENH264)
+endif()
+
+if(WITH_MMALH264)
+  find_package(MMALH264)
+endif()
 
 if(WITH_SDL)
   find_package(SDL2)
@@ -229,9 +259,34 @@ if(PNG_FOUND)
 else()
   unset(PNG_LIBRARIES) # would otherwise contain -NOTFOUND, confusing target_link_libraries()
 endif(PNG_FOUND)
+
+if(X264_FOUND)
+  set(LIBVNCSERVER_HAVE_LIBX264 1)
+else()
+  set(X264_LIBRARIES "") # would otherwise contain -NOTFOUND, confusing target_link_libraries()
+endif(X264_FOUND)
+
+if(OPENH264_FOUND)
+  set(LIBVNCSERVER_HAVE_LIBOPENH264 1)
+else()
+  set(OPENH264_LIBRARIES "") # would otherwise contain -NOTFOUND, confusing target_link_libraries()
+endif(OPENH264_FOUND)
+
+if(MMALH264_FOUND)
+  set(LIBVNCSERVER_HAVE_LIBMMALH264 1)
+else()
+  set(MMALH264_LIBRARIES "") # would otherwise contain -NOTFOUND, confusing target_link_libraries()
+endif(MMALH264_FOUND)
+
+#if(WITH_WEBSOCKETS AND (LIBVNCSERVER_HAVE_HTOBE64 OR LIBVNCSERVER_HAVE_OSSWAPHOSTTOBIGINT64))
+if(WITH_WEBSOCKETS)
+  set(LIBVNCSERVER_WITH_WEBSOCKETS 1)
+endif()
+
 if(NOT OPENSSL_FOUND)
     unset(OPENSSL_LIBRARIES) # would otherwise contain -NOTFOUND, confusing target_link_libraries()
 endif()
+
 if(SYSTEMD_FOUND)
   add_definitions(-DLIBVNCSERVER_WITH_SYSTEMD)
   include_directories(${SYSTEMD_INCLUDE_DIRS})
@@ -250,10 +305,6 @@ elseif(OPENSSL_FOUND)
 else()
   message(STATUS "Building crypto with builtin functions, only including SHA1 and D3DES")
   set(CRYPTO_SOURCES ${COMMON_DIR}/crypto_included.c ${COMMON_DIR}/sha1.c ${COMMON_DIR}/d3des.c)
-endif()
-
-if(WITH_WEBSOCKETS AND (LIBVNCSERVER_HAVE_HTOBE64 OR LIBVNCSERVER_HAVE_OSSWAPHOSTTOBIGINT64))
-  set(LIBVNCSERVER_WITH_WEBSOCKETS 1)
 endif()
 
 if(WITH_GCRYPT AND LIBGCRYPT_LIBRARIES)
@@ -363,6 +414,7 @@ set(LIBVNCSERVER_SOURCES
     ${LIBVNCSERVER_DIR}/ultra.c
     ${LIBVNCSERVER_DIR}/scale.c
     ${CRYPTO_SOURCES}
+    ${LIBVNCSERVER_DIR}/statistics/rfbStatistics.c
 )
 
 set(LIBVNCCLIENT_SOURCES
@@ -444,8 +496,7 @@ else()
   )
   set(LIBVNCCLIENT_SOURCES
     ${LIBVNCCLIENT_SOURCES}
-    ${COMMON_DIR}/minilzo.c
-  )
+    ${COMMON_DIR}/minilzo.c)
 endif()
 
 if(JPEG_FOUND)
@@ -461,9 +512,47 @@ if(PNG_FOUND)
   include_directories(${PNG_INCLUDE_DIR})
 endif(PNG_FOUND)
 
+if(X264_FOUND)
+  add_definitions(-DLIBVNCSERVER_HAVE_LIBX264)
+  include_directories(
+          {X264_INCLUDE_DIR}
+  )
+  set(X264_C
+          ${LIBVNCSERVER_DIR}/h264/common.c
+          ${LIBVNCSERVER_DIR}/h264/x264.c
+  )
+endif(X264_FOUND)
+
+if(OPENH264_FOUND)
+  add_definitions(-DLIBVNCSERVER_HAVE_LIBOPENH264)
+  include_directories(${OPENH264_INCLUDE_DIR})
+  set(OPENH264_C
+          ${LIBVNCSERVER_DIR}/h264/common.c
+          ${LIBVNCSERVER_DIR}/h264/openh264.c
+  )
+endif(OPENH264_FOUND)
+
+if(MMALH264_FOUND)
+  add_definitions(-DLIBVNCSERVER_HAVE_MMALOPENH264)
+  include_directories(
+          /usr/include
+          ${MMALH264_INCLUDE_DIR}
+          /usr/include/libdrm
+  )
+  set(MMALH264_C
+          ${LIBVNCSERVER_DIR}/h264/common.c
+          ${LIBVNCSERVER_DIR}/h264/mmalh264.c
+          ${LIBVNCSERVER_DIR}/h264/mmalh264_encoder.c
+          ${LIBVNCSERVER_DIR}/h264/display.c
+  )
+endif(MMALH264_FOUND)
+
 set(LIBVNCSERVER_SOURCES
     ${LIBVNCSERVER_SOURCES}
     ${TIGHT_C}
+    ${X264_C}
+    ${OPENH264_C}
+    ${MMALH264_C}
 )
 
 if(WITH_THREADS AND WITH_TIGHTVNC_FILETRANSFER AND CMAKE_USE_PTHREADS_INIT)
@@ -495,24 +584,77 @@ if(WIN32)
   endif(WITH_TIGHTVNC_FILETRANSFER)
 endif(WIN32)
 
+if(ANDROID)
+  find_library(log-lib log)
+  find_library(mediandk-lib mediandk)
+
+  set(LIBVNCSERVERANDROID_SOURCES
+    ${LIBVNCSERVER_SOURCES}
+    ${LIBVNCSERVER_DIR}/../android/androidopenh264server.c
+    ${LIBVNCSERVER_DIR}/../android/androidlibvncserver.c
+    ${LIBVNCSERVER_DIR}/../android/logging.c
+  )
+
+  add_library(openh264-lib
+          SHARED
+          IMPORTED
+  )
+
+  set_target_properties(openh264-lib
+            PROPERTIES IMPORTED_LOCATION
+            ${OPENH264_LIBRARIES}
+  )
+
+  add_library(vncserverandroid SHARED ${LIBVNCSERVERANDROID_SOURCES})
+
+  target_link_libraries(vncserverandroid
+    ${ADDITIONAL_LIBS}
+    ${ZLIB_LIBRARIES}
+    ${LZO_LIBRARIES}
+    ${JPEG_LIBRARIES}
+    ${PNG_LIBRARIES}
+    ${CRYPTO_LIBRARIES}
+    ${GNUTLS_LIBRARIES}
+    ${OPENH264_LIBRARIES}
+    ${OPENSSL_LIBRARIES}
+    ${log-lib}
+    ${mediandk-lib}
+  )
+endif(ANDROID)
+
 target_link_libraries(vncclient
                       ${ADDITIONAL_LIBS}
                       ${ZLIB_LIBRARIES}
                       ${LZO_LIBRARIES}
                       ${JPEG_LIBRARIES}
-		      ${CRYPTO_LIBRARIES}
+		              ${CRYPTO_LIBRARIES}
                       ${GNUTLS_LIBRARIES}
                       ${OPENSSL_LIBRARIES}
 )
+
+#add_library(${OPENH264_LIBRARIES} SHARED IMPORTED)
+#set_property(TARGET vncserver PROPERTY IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/extern/openh264/lib)
+
 target_link_libraries(vncserver
                       ${ADDITIONAL_LIBS}
                       ${ZLIB_LIBRARIES}
                       ${LZO_LIBRARIES}
                       ${JPEG_LIBRARIES}
-		      ${PNG_LIBRARIES}
-		      ${CRYPTO_LIBRARIES}
+		              ${PNG_LIBRARIES}
+#                      ${X264_LIBRARIES}
+		              ${CRYPTO_LIBRARIES}
                       ${GNUTLS_LIBRARIES}
                       ${OPENSSL_LIBRARIES}
+                      ${OPENH264_LIBRARIES}
+                      ${MMALH264_LIBRARIES}
+                      /opt/vc/lib/libvchostif.a
+                      /opt/vc/lib/libvchiq_arm.so
+                      /opt/vc/lib/libvcos.so
+                      /opt/vc/lib/libbcm_host.so
+                      /opt/vc/lib/libvcsm.so
+                      EGL
+                      GLESv2
+                      drm
 )
 
 SET_TARGET_PROPERTIES(vncclient vncserver
@@ -536,6 +678,7 @@ set(LIBVNCSERVER_EXAMPLES
     simple15
     storepasswd
     vncev
+    x264server
   )
 
 if(WITH_THREADS AND (CMAKE_USE_PTHREADS_INIT OR CMAKE_USE_WIN32_THREADS_INIT))
@@ -548,7 +691,6 @@ endif(WITH_THREADS AND (CMAKE_USE_PTHREADS_INIT OR CMAKE_USE_WIN32_THREADS_INIT)
 if(WITH_THREADS AND WITH_TIGHTVNC_FILETRANSFER AND CMAKE_USE_PTHREADS_INIT)
   set(LIBVNCSERVER_EXAMPLES
     ${LIBVNCSERVER_EXAMPLES}
-    filetransfer
   )
 endif(WITH_THREADS AND WITH_TIGHTVNC_FILETRANSFER AND CMAKE_USE_PTHREADS_INIT)
 
@@ -568,6 +710,8 @@ if(ANDROID)
     androidvncserver
   )
 endif(ANDROID)
+
+
 
 set(LIBVNCCLIENT_EXAMPLES
     backchannel
@@ -597,6 +741,35 @@ if(FFMPEG_FOUND)
     vnc2mpg
   )
 endif(FFMPEG_FOUND)
+
+### linux vncserver example begin
+include_directories(/usr/local/include/libevdev-1.0)
+add_executable(linuxvncserver
+        ${LIBVNCSRVEXAMPLE_DIR}/linuxvncserver/linuxvncserver.c
+#        ${LIBVNCSRVEXAMPLE_DIR}/linuxvncserver/display.c
+        ${LIBVNCSRVEXAMPLE_DIR}/linuxvncserver/keyboard.c
+        ${LIBVNCSRVEXAMPLE_DIR}/linuxvncserver/mouse.c
+        ${LIBVNCSRVEXAMPLE_DIR}/linuxvncserver/rfbQmuKeyboardEventProtocolExtension.c
+        )
+add_library(libevdev SHARED IMPORTED)
+set_target_properties(libevdev PROPERTIES IMPORTED_LOCATION /usr/local/lib/libevdev.so)
+set_target_properties(linuxvncserver PROPERTIES OUTPUT_NAME linuxvncserver)
+set_target_properties(linuxvncserver PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/examples/linuxvncserver)
+target_link_libraries(linuxvncserver
+        vncserver
+        /opt/vc/lib/libvchostif.a
+        /opt/vc/lib/libvchiq_arm.so
+        /opt/vc/lib/libvcos.so
+        /opt/vc/lib/libbcm_host.so
+        #rpi memcopy dependencies
+        /opt/vc/lib/libvcsm.so
+        pthread
+        ${CMAKE_THREAD_LIBS_INIT}
+        ${CARBON_LIBRARY}
+        ${IOKIT_LIBRARY}
+        ${IOSURFACE_LIBRARY}
+)
+### linux vncserver example end
 
 
 foreach(e ${LIBVNCSERVER_EXAMPLES})
